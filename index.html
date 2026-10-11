@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1220">
+  <title>SafeBand v2 | Caregiver Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="SafeBand home">
+        <span class="brand-mark">S</span>
+        <span><strong>SafeBand</strong><small>CARE SYSTEM · V2</small></span>
+      </a>
+      <div class="nav-label">WORKSPACE</div>
+      <nav class="nav">
+        <a class="nav-link active" href="#overview"><span>▦</span> Overview</a>
+        <a class="nav-link" href="#vitals"><span>♡</span> Vitals</a>
+        <a class="nav-link" href="#location"><span>⌖</span> Location</a>
+        <a class="nav-link" href="#alerts"><span>⚑</span> Alerts <b id="nav-alert-count">1</b></a>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="connection-dot"></div>
+        <div><strong>Demo mode</strong><small>Hardware not connected</small></div>
+      </div>
+    </aside>
+
+    <main class="main-content" id="overview">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">CAREGIVER CONSOLE</div>
+          <h1>Overview</h1>
+          <p class="muted">Monitor your SafeBand wearer and review recent events.</p>
+        </div>
+        <div class="top-actions">
+          <span class="demo-pill"><span></span> DEMO DATA</span>
+          <div class="avatar">CG</div>
+        </div>
+      </header>
+
+      <section class="welcome-row">
+        <div>
+          <p class="muted small">WEARER PROFILE</p>
+          <h2>SafeBand wearer <span class="status-tag"><i></i> Demo online</span></h2>
+          <p class="muted">Device ID: <code>SB-V2-DEMO-001</code></p>
+        </div>
+        <button class="button secondary" id="refresh-button" type="button">↻ Refresh demo data</button>
+      </section>
+
+      <section class="metric-grid" id="vitals" aria-label="Vital signs">
+        <article class="metric-card">
+          <div class="metric-top"><span>Heart rate</span><span class="metric-icon pink">♡</span></div>
+          <div class="metric-value"><span id="heart-rate">76</span><small>BPM</small></div>
+          <div class="metric-foot"><span class="healthy-dot"></span> Demo reading <span class="muted">· not medical data</span></div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-top"><span>SpO₂</span><span class="metric-icon blue">◉</span></div>
+          <div class="metric-value"><span id="spo2">98</span><small>%</small></div>
+          <div class="metric-foot"><span class="healthy-dot"></span> Demo reading <span class="muted">· not medical data</span></div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-top"><span>Movement</span><span class="metric-icon violet">⌁</span></div>
+          <div class="metric-value"><span id="movement">Low</span></div>
+          <div class="metric-foot">Simulated MPU6050 status</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-top"><span>Battery</span><span class="metric-icon green">ϟ</span></div>
+          <div class="metric-value"><span id="battery">84</span><small>%</small></div>
+          <div class="battery-track"><span id="battery-bar" style="width:84%"></span></div>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel" id="alerts">
+          <div class="panel-heading">
+            <div><h3>Recent alerts</h3><p class="muted">Latest device events</p></div>
+            <span class="count-badge" id="alert-count">1 event</span>
+          </div>
+          <div class="alert-item">
+            <div class="alert-symbol warning">!</div>
+            <div class="alert-copy"><strong>Fall detection test event</strong><p class="muted">Simulated event for dashboard preview.</p><small id="event-time">Just now</small></div>
+            <span class="event-status">DEMO</span>
+          </div>
+          <div class="empty-note">Real alerts will appear here after the ESP32 is connected to Firebase.</div>
+        </article>
+
+        <article class="panel" id="location">
+          <div class="panel-heading">
+            <div><h3>Last known location</h3><p class="muted">GPS module · NEO-6M</p></div>
+            <span class="location-badge">PREVIEW</span>
+          </div>
+          <div class="map-placeholder">
+            <div class="map-grid"></div>
+            <div class="map-pin">⌖</div>
+            <div class="map-caption"><strong>Location not connected</strong><span>GPS coordinates will appear here</span></div>
+          </div>
+          <div class="location-coordinates"><span>Latitude</span><strong>—</strong><span>Longitude</span><strong>—</strong></div>
+          <p class="map-disclaimer">No real location is being tracked in demo mode.</p>
+        </article>
+      </section>
+
+      <section class="panel next-steps">
+        <div class="panel-heading"><div><h3>System setup</h3><p class="muted">Complete these steps to activate the dashboard.</p></div></div>
+        <div class="setup-list">
+          <div class="setup-item done"><span>✓</span><div><strong>Dashboard frontend</strong><small>HTML, CSS and JavaScript starter</small></div><em>Ready</em></div>
+          <div class="setup-item"><span>2</span><div><strong>Firebase connection</strong><small>Realtime database and authentication</small></div><em>Next</em></div>
+          <div class="setup-item"><span>3</span><div><strong>ESP32 sensor upload</strong><small>Send sensor readings and fall events securely</small></div><em>Pending</em></div>
+          <div class="setup-item"><span>4</span><div><strong>Caregiver notifications</strong><small>Configure and test WhatsApp/SMS delivery</small></div><em>Pending</em></div>
+        </div>
+      </section>
+      <footer>SafeBand v2 · Prototype dashboard <span>Demo readings are simulated and must not be used for medical or emergency decisions.</span></footer>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
