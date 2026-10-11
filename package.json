@@ -1,0 +1,22 @@
+{
+  "name": "safeband-v2-dashboard",
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "chart.js": "^4.4.8",
+    "dotenv": "^16.4.7",
+    "firebase": "^11.4.0",
+    "firebase-admin": "^13.2.0",
+    "leaflet": "^1.9.4",
+    "twilio": "^5.5.0"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}
