@@ -1,12 +1,18 @@
 {
   "rules": {
-    "devices": { ".read": true, ".write": false },
+    "devices": {
+      ".read": "auth != null",
+      ".write": false
+    },
     "alerts": {
-      ".read": true,
+      ".read": "auth != null",
       ".write": false,
       ".indexOn": ["ts"],
       "$id": {
-        "acknowledged": { ".write": true, ".validate": "newData.isBoolean()" }
+        "acknowledged": {
+          ".write": "auth != null",
+          ".validate": "newData.isBoolean()"
+        }
       }
     }
   }

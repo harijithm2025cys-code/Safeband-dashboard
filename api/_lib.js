@@ -39,6 +39,18 @@ function clean(b) {
   const src = b.locSource ?? 'none';
   if (!['gps', 'wifi', 'ip', 'last', 'none'].includes(src)) return { err: 'locSource' };
   o.locSource = o.lat === null ? 'none' : src;
+  if (b.accelPeakG !== undefined && b.accelPeakG !== null) {
+    o.accelPeakG = num(b.accelPeakG, 0, 40);
+    if (Number.isNaN(o.accelPeakG)) return { err: 'accelPeakG' };
+  } else {
+    o.accelPeakG = null;
+  }
+  if (b.fallState !== undefined && b.fallState !== null) {
+    if (!['IDLE', 'IMPACT', 'STILL', 'COUNTDOWN'].includes(b.fallState)) return { err: 'fallState' };
+    o.fallState = b.fallState;
+  } else {
+    o.fallState = null;
+  }
   return { v: o };
 }
 

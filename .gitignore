@@ -1,8 +1,8 @@
 .env
 .env.local
 node_modules/
-firmware/
 .pio/
+**/.pio/
 dist/
 .vercel/
 **/secrets.h
