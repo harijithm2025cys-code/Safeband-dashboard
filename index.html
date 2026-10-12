@@ -797,6 +797,35 @@ $('signOutBtn').onclick = () => {
 };
 
 /* ---------- Initialization ---------- */
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAOLQIjGcLEQJEjaFy96NkgVZ_zohsUmzI",
+  authDomain: "safeband-148ee.firebaseapp.com",
+  databaseURL: "https://safeband-148ee-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "safeband-148ee",
+  storageBucket: "safeband-148ee.firebasestorage.app",
+  messagingSenderId: "728992274955",
+  appId: "1:728992274955:web:881ee38c9d32fe741f050e"
+};
+
+function initFirebase(cfg) {
+  if (!firebase.apps.length) {
+    firebase.initializeApp(cfg);
+  }
+  auth = firebase.auth();
+  db = firebase.database();
+
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      showDashboard(user.email);
+      attachDb();
+    } else {
+      detachDb();
+      clearDashboard();
+      showLogin();
+    }
+  });
+}
+
 fetch('/api/config')
   .then(r => {
     if (!r.ok) throw new Error('config request failed');
@@ -804,26 +833,15 @@ fetch('/api/config')
   })
   .then(cfg => {
     if (!cfg.apiKey || !cfg.databaseURL) throw new Error('incomplete config');
-    if (!firebase.apps.length) {
-      firebase.initializeApp(cfg);
-    }
-    auth = firebase.auth();
-    db = firebase.database();
-
-    auth.onAuthStateChanged(user => {
-      if (user) {
-        showDashboard(user.email);
-        attachDb();
-      } else {
-        detachDb();
-        clearDashboard();
-        showLogin();
-      }
-    });
+    initFirebase(cfg);
   })
   .catch(() => {
-    showConnectionError();
-    showLogin();
+    if (DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) {
+      initFirebase(DEFAULT_FIREBASE_CONFIG);
+    } else {
+      showConnectionError();
+      showLogin();
+    }
   });
 
 setInterval(() => {
