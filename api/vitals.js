@@ -1,20 +1,32 @@
-const { db, guard, clean } = require('./_lib');
+const { db, sendJson, readBody, checkSecret, validateVitals } = require('./_lib');
 
 module.exports = async (req, res) => {
-  if (!guard(req, res)) return;
-  const { v, err } = clean(req.body);
-  if (err) return res.status(400).json({ error: 'invalid ' + err });
-  try {
-    const updateData = {
-      heartRate: v.heartRate, spo2: v.spo2, lat: v.lat, lng: v.lng,
-      accuracy: v.accuracy, locSource: v.locSource, ts: Date.now(),
-    };
-    if (v.accelPeakG !== null && v.accelPeakG !== undefined) updateData.accelPeakG = v.accelPeakG;
-    if (v.fallState !== null && v.fallState !== undefined) updateData.fallState = v.fallState;
-    await db().ref(`devices/${v.deviceId}/latest`).update(updateData);
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('vitals failed', e.message);
-    res.status(500).json({ error: 'server error' });
-  }
+    try {
+        if (req.method !== 'POST') { sendJson(res, 405, { error: 'method' }); return; }
+        if (!checkSecret(req)) { sendJson(res, 401, { error: 'unauthorized' }); return; }
+
+        const body = await readBody(req);
+        if (!body) { sendJson(res, 400, { error: 'body' }); return; }
+
+        const err = validateVitals(body);
+        if (err) { sendJson(res, 400, { error: err }); return; }
+
+        const now = Date.now();
+        const payload = {
+            heartRate: body.heartRate === undefined ? null : body.heartRate,
+            spo2: body.spo2 === undefined ? null : body.spo2,
+            lat: body.lat === undefined ? null : body.lat,
+            lng: body.lng === undefined ? null : body.lng,
+            accuracy: body.accuracy === undefined ? null : body.accuracy,
+            locSource: body.locSource === undefined ? null : body.locSource,
+            accelPeakG: body.accelPeakG === undefined ? null : body.accelPeakG,
+            fallState: body.fallState === undefined ? null : body.fallState,
+            ts: now
+        };
+
+        await db().ref('devices/' + body.deviceId + '/latest').update(payload);
+        sendJson(res, 200, { ok: true });
+    } catch (e) {
+        sendJson(res, 500, { error: 'server' });
+    }
 };

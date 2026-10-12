@@ -1,57 +1,117 @@
 const admin = require('firebase-admin');
 
-function db() {
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)),
-      databaseURL: process.env.VITE_FIREBASE_DATABASE_URL,
+let initialized = false;
+function initAdmin() {
+    if (initialized) return admin;
+    if (!admin.apps || admin.apps.length === 0) {
+        const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '';
+        if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON missing');
+        const svc = JSON.parse(raw);
+        if (svc.private_key && svc.private_key.indexOf('\\n') !== -1) {
+            svc.private_key = svc.private_key.replace(/\\n/g, '\n');
+        }
+        admin.initializeApp({
+            credential: admin.credential.cert(svc),
+            databaseURL: process.env.VITE_FIREBASE_DATABASE_URL
+        });
+    }
+    initialized = true;
+    return admin;
+}
+
+function db() { return initAdmin().database(); }
+
+function sendJson(res, code, body) {
+    try {
+        res.statusCode = code;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+        res.end(JSON.stringify(body));
+    } catch (e) {
+        try { res.end('{}'); } catch (_) { }
+    }
+}
+
+async function readBody(req) {
+    return new Promise((resolve) => {
+        let raw = '';
+        try {
+            req.on('data', (c) => {
+                raw += c;
+                if (raw.length > 1e6) { try { req.destroy(); } catch (_) { } resolve(null); }
+            });
+            req.on('end', () => {
+                if (!raw) { resolve(null); return; }
+                try { resolve(JSON.parse(raw)); }
+                catch (e) { resolve(null); }
+            });
+            req.on('error', () => resolve(null));
+        } catch (e) { resolve(null); }
     });
-  }
-  return admin.database();
 }
 
-function guard(req, res) {
-  if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return false; }
-  const s = req.headers['x-device-secret'];
-  if (!process.env.DEVICE_SECRET || s !== process.env.DEVICE_SECRET) {
-    res.status(401).json({ error: 'unauthorized' });
-    return false;
-  }
-  return true;
+function checkSecret(req) {
+    const s = req.headers['x-device-secret'] || req.headers['X-Device-Secret'];
+    const expected = process.env.DEVICE_SECRET || '';
+    if (!expected) return false;
+    return typeof s === 'string' && s.length === expected.length && s === expected;
 }
 
-// null/undefined -> null, in range -> number, anything else -> NaN (invalid)
-const num = (v, lo, hi) => (v === null || v === undefined ? null : typeof v === 'number' && v >= lo && v <= hi ? v : NaN);
+function isInt(n) { return typeof n === 'number' && Number.isFinite(n) && Math.floor(n) === n; }
+function isNum(n) { return typeof n === 'number' && Number.isFinite(n); }
+function isBool(b) { return typeof b === 'boolean'; }
 
-function clean(b) {
-  if (!b || typeof b !== 'object') return { err: 'body' };
-  if (typeof b.deviceId !== 'string' || !/^[\w-]{1,40}$/.test(b.deviceId)) return { err: 'deviceId' };
-  const o = {
-    deviceId: b.deviceId,
-    heartRate: num(b.heartRate, 20, 250),
-    spo2: num(b.spo2, 50, 100),
-    lat: num(b.lat, -90, 90),
-    lng: num(b.lng, -180, 180),
-    accuracy: num(b.accuracy, 0, 1e6),
-  };
-  for (const k of ['heartRate', 'spo2', 'lat', 'lng', 'accuracy']) if (Number.isNaN(o[k])) return { err: k };
-  if ((o.lat === null) !== (o.lng === null)) return { err: 'lat/lng' };
-  const src = b.locSource ?? 'none';
-  if (!['gps', 'wifi', 'ip', 'last', 'none'].includes(src)) return { err: 'locSource' };
-  o.locSource = o.lat === null ? 'none' : src;
-  if (b.accelPeakG !== undefined && b.accelPeakG !== null) {
-    o.accelPeakG = num(b.accelPeakG, 0, 40);
-    if (Number.isNaN(o.accelPeakG)) return { err: 'accelPeakG' };
-  } else {
-    o.accelPeakG = null;
-  }
-  if (b.fallState !== undefined && b.fallState !== null) {
-    if (!['IDLE', 'IMPACT', 'STILL', 'COUNTDOWN'].includes(b.fallState)) return { err: 'fallState' };
-    o.fallState = b.fallState;
-  } else {
-    o.fallState = null;
-  }
-  return { v: o };
+function validateVitals(b) {
+    if (!b || typeof b !== 'object') return 'body';
+    if (typeof b.deviceId !== 'string' || !/^[\w-]{1,40}$/.test(b.deviceId)) return 'deviceId';
+    if (b.heartRate !== null && b.heartRate !== undefined && !(isInt(b.heartRate) && b.heartRate >= 20 && b.heartRate <= 250)) return 'heartRate';
+    if (b.spo2 !== null && b.spo2 !== undefined && !(isInt(b.spo2) && b.spo2 >= 50 && b.spo2 <= 100)) return 'spo2';
+    if (b.lat !== null && b.lat !== undefined && !(isNum(b.lat) && b.lat >= -90 && b.lat <= 90)) return 'lat';
+    if (b.lng !== null && b.lng !== undefined && !(isNum(b.lng) && b.lng >= -180 && b.lng <= 180)) return 'lng';
+    if (b.accuracy !== null && b.accuracy !== undefined && !(isNum(b.accuracy) && b.accuracy >= 0 && b.accuracy <= 1e6)) return 'accuracy';
+    const latN = b.lat === null || b.lat === undefined;
+    const lngN = b.lng === null || b.lng === undefined;
+    if (latN !== lngN) return 'latlng';
+    if (b.locSource !== undefined && b.locSource !== null) {
+        const ok = ['gps', 'wifi', 'ip', 'last', 'none'].indexOf(b.locSource) !== -1;
+        if (!ok) return 'locSource';
+    }
+    if (b.accelPeakG !== null && b.accelPeakG !== undefined && !(isNum(b.accelPeakG) && b.accelPeakG >= 0 && b.accelPeakG <= 40)) return 'accelPeakG';
+    if (b.fallState !== undefined && b.fallState !== null) {
+        const ok = ['IDLE', 'COUNTDOWN', 'ALERT'].indexOf(b.fallState) !== -1;
+        if (!ok) return 'fallState';
+    }
+    return null;
 }
 
-module.exports = { db, guard, clean };
+function validateAlert(b) {
+    const base = validateVitals(b);
+    if (base) return base;
+    if (typeof b.type !== 'string') return 'type';
+    const ok = ['FALL', 'LOW_SPO2', 'SOS'].indexOf(b.type) !== -1;
+    if (!ok) return 'type';
+    if (b.manualTrigger !== undefined && !isBool(b.manualTrigger)) return 'manualTrigger';
+    return null;
+}
+
+function labelForSource(src) {
+    switch (src) {
+        case 'gps': return 'GPS';
+        case 'wifi': return 'approximate (Wi-Fi)';
+        case 'ip': return 'approximate (internet)';
+        case 'last': return 'last known position';
+        default: return 'location unavailable';
+    }
+}
+
+module.exports = {
+    initAdmin,
+    db,
+    sendJson,
+    readBody,
+    checkSecret,
+    validateVitals,
+    validateAlert,
+    isNum,
+    labelForSource
+};

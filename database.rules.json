@@ -1,19 +1,30 @@
 {
-  "rules": {
-    "devices": {
-      ".read": "auth != null",
-      ".write": false
-    },
-    "alerts": {
-      ".read": "auth != null",
-      ".write": false,
-      ".indexOn": ["ts"],
-      "$id": {
-        "acknowledged": {
-          ".write": "auth != null",
-          ".validate": "newData.isBoolean()"
+    "rules": {
+        "devices": {
+            ".read": "auth != null",
+            ".write": false,
+            "$deviceId": {
+                ".read": "auth != null",
+                ".write": false,
+                "latest": {
+                    ".read": "auth != null",
+                    ".write": false
+                }
+            }
+        },
+        "alerts": {
+            ".read": "auth != null",
+            ".write": false,
+            ".indexOn": [
+                "ts"
+            ],
+            "$alertId": {
+                ".read": "auth != null",
+                "acknowledged": {
+                    ".read": "auth != null",
+                    ".write": "auth != null && newData.isBoolean()"
+                }
+            }
         }
-      }
     }
-  }
 }

@@ -1,64 +1,175 @@
-const { db, guard, clean } = require('./_lib');
+const { db, sendJson, readBody, checkSecret, validateAlert, labelForSource } = require('./_lib');
 
-const TITLE = { FALL: 'Possible fall detected', LOW_SPO2: 'Low oxygen level', SOS: 'SOS button pressed' };
-const SRC = { gps: 'GPS', wifi: 'approximate (Wi-Fi)', ip: 'approximate (internet)', last: 'last known position' };
+const ALERT_RATE_MS = 30000;
 
-async function summarize(a) {
-  const facts = `${TITLE[a.type]}${a.manualTrigger ? ' (pressed manually)' : ''}. Heart rate ${a.heartRate ?? 'unknown'}, SpO2 ${a.spo2 ?? 'unknown'}%.`;
-  const fallback = `${facts} Please call and check on them now.`;
-  if (!process.env.GEMINI_API_KEY) return fallback;
-  try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 5000);
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
-      method: 'POST',
-      signal: ctl.signal,
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
-      body: JSON.stringify({ contents: [{ parts: [{ text: `Write a calm 2-sentence alert for a family caregiver. Plain words, no emojis. Facts: ${facts}` }] }] }),
-    });
-    clearTimeout(t);
+async function geminiSummary(type, hr, spo2, locSource, manual){
+  const fallback = fallbackSummary(type, hr, spo2, locSource, manual);
+  const key = process.env.GEMINI_API_KEY;
+  if(!key) return fallback;
+  try{
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'x-goog-api-key': key
+        },
+        body: JSON.stringify({
+          contents:[{
+            parts:[{
+              text:
+                'Write two calm sentences for a family caregiver. ' +
+                'Alert type: ' + type + '. ' +
+                'Manual trigger: ' + (manual ? 'yes' : 'no') + '. ' +
+                'Heart rate: ' + (hr === null ? 'unknown' : hr + ' bpm') + '. ' +
+                'SpO2: ' + (spo2 === null ? 'unknown' : spo2 + ' percent') + '. ' +
+                'Location: ' + labelForSource(locSource) + '. ' +
+                'No emojis, no markdown.'
+            }]
+          }]
+        }),
+        signal: ctrl.signal
+      }
+    );
+    clearTimeout(to);
+    if(!r.ok) return fallback;
     const j = await r.json();
-    return j?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || fallback;
-  } catch { return fallback; }
+    const text = j && j.candidates && j.candidates[0] &&
+                 j.candidates[0].content && j.candidates[0].content.parts &&
+                 j.candidates[0].content.parts[0] && j.candidates[0].content.parts[0].text;
+    if(typeof text === 'string' && text.trim().length > 0){
+      return text.trim().replace(/[*_`#]/g,'').slice(0, 400);
+    }
+    return fallback;
+  }catch(e){ return fallback; }
 }
 
-async function whatsapp(text) {
-  try {
-    const sid = process.env.TWILIO_ACCOUNT_SID, tok = process.env.TWILIO_AUTH_TOKEN;
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { Authorization: 'Basic ' + Buffer.from(`${sid}:${tok}`).toString('base64') },
-      body: new URLSearchParams({ From: process.env.TWILIO_WHATSAPP_FROM, To: process.env.CAREGIVER_WHATSAPP_TO, Body: text }),
+function fallbackSummary(type, hr, spo2, locSource, manual){
+  const hrS = (hr === null || hr === undefined) ? 'an unknown heart rate' : (hr + ' bpm');
+  const spS = (spo2 === null || spo2 === undefined) ? 'an unknown oxygen level' : (spo2 + ' percent oxygen');
+  const locS = labelForSource(locSource);
+  if(type === 'FALL'){
+    return (manual ? 'A fall was reported manually from the band. ' : 'A fall was detected on the band. ') +
+           'Heart rate is ' + hrS + ' and oxygen level is ' + spS + '. Location: ' + locS + '.';
+  }
+  if(type === 'LOW_SPO2'){
+    return 'Oxygen level is low at ' + spS + ' on the band. Heart rate is ' + hrS + '. Location: ' + locS + '.';
+  }
+  return 'An emergency alert was sent from the band. Heart rate is ' + hrS + ' and oxygen is ' + spS +
+         '. Location: ' + locS + '.';
+}
+
+async function sendWhatsApp(title, summary, hr, spo2, lat, lng, locSource, manual){
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+  const to = process.env.CAREGIVER_WHATSAPP_TO;
+  if(!sid || !token || !from || !to) return false;
+
+  let body = title;
+  if(manual) body += ' (manually triggered)';
+  body += '\n' + summary;
+  body += '\nHR ' + (hr === null || hr === undefined ? 'unknown' : hr + ' bpm') +
+          '  ·  SpO2 ' + (spo2 === null || spo2 === undefined ? 'unknown' : spo2 + '%');
+  body += '\nLocation: ' + labelForSource(locSource);
+  if(typeof lat === 'number' && typeof lng === 'number'){
+    body += '\nhttps://www.google.com/maps?q=' + lat + ',' + lng;
+  }
+
+  try{
+    const ctrl = new AbortController();
+    const to2 = setTimeout(() => ctrl.abort(), 5000);
+    const url = 'https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Messages.json';
+    const auth = Buffer.from(sid + ':' + token).toString('base64');
+    const form = new URLSearchParams();
+    form.set('From', from);
+    form.set('To', to);
+    form.set('Body', body);
+    const r = await fetch(url, {
+      method:'POST',
+      headers:{
+        'Authorization':'Basic ' + auth,
+        'Content-Type':'application/x-www-form-urlencoded'
+      },
+      body: form.toString(),
+      signal: ctrl.signal
     });
+    clearTimeout(to2);
     return r.ok;
-  } catch { return false; }
+  }catch(e){ return false; }
 }
 
 module.exports = async (req, res) => {
-  if (!guard(req, res)) return;
-  const { v, err } = clean(req.body);
-  if (err) return res.status(400).json({ error: 'invalid ' + err });
-  const type = req.body.type;
-  if (!TITLE[type]) return res.status(400).json({ error: 'invalid type' });
+  try{
+    if(req.method !== 'POST'){ sendJson(res, 405, {error:'method'}); return; }
+    if(!checkSecret(req)){ sendJson(res, 401, {error:'unauthorized'}); return; }
 
-  try {
-    const d = db();
-    const lastRef = d.ref(`devices/${v.deviceId}/lastAlertAt`);
-    if (Date.now() - ((await lastRef.get()).val() || 0) < 30000) return res.status(429).json({ error: 'rate limited' });
-    await lastRef.set(Date.now());
+    const body = await readBody(req);
+    if(!body){ sendJson(res, 400, {error:'body'}); return; }
 
-    const alert = { ...v, type, manualTrigger: req.body.manualTrigger === true, acknowledged: false, ts: Date.now() };
-    const ref = d.ref('alerts').push();
-    await ref.set(alert);
-    await d.ref(`devices/${v.deviceId}/latest`).update({ heartRate: v.heartRate, spo2: v.spo2, lat: v.lat, lng: v.lng, accuracy: v.accuracy, locSource: v.locSource, ts: alert.ts });
+    const err = validateAlert(body);
+    if(err){ sendJson(res, 400, {error:err}); return; }
 
-    const summary = await summarize(alert);
-    const loc = v.lat === null ? 'location unavailable' : `${SRC[v.locSource] || v.locSource}: https://maps.google.com/?q=${v.lat},${v.lng}`;
-    const sent = await whatsapp(`SafeBand: ${TITLE[type]}${alert.manualTrigger ? ' (manually triggered)' : ''}\n${summary}\nHR ${v.heartRate ?? '--'} | SpO2 ${v.spo2 ?? '--'}%\nLocation: ${loc}`);
-    await ref.update({ summary, whatsapp: sent });
-    res.json({ ok: true, id: ref.key, whatsapp: sent });
-  } catch (e) {
-    console.error('alert failed', e.message);
-    res.status(500).json({ error: 'server error' });
+    const now = Date.now();
+    const deviceId = body.deviceId;
+    const lastRef = db().ref('devices/'+deviceId+'/lastAlertAt');
+    const snap = await lastRef.get();
+    const last = snap && snap.exists() ? snap.val() : 0;
+    if(typeof last === 'number' && (now - last) < ALERT_RATE_MS){
+      sendJson(res, 429, {error:'rate'});
+      return;
+    }
+    await lastRef.set(now);
+
+    const type = body.type;
+    const manual = body.manualTrigger === true;
+    const hr = (body.heartRate === undefined) ? null : body.heartRate;
+    const spo2 = (body.spo2 === undefined) ? null : body.spo2;
+    const lat = (body.lat === undefined) ? null : body.lat;
+    const lng = (body.lng === undefined) ? null : body.lng;
+    const locSource = (body.locSource === undefined) ? 'none' : (body.locSource || 'none');
+
+    const titleMap = {
+      FALL: 'SafeBand: Fall detected',
+      LOW_SPO2: 'SafeBand: Low oxygen',
+      SOS: 'SafeBand: Emergency SOS'
+    };
+    const title = titleMap[type] || 'SafeBand alert';
+
+    const summary = await geminiSummary(type, hr, spo2, locSource, manual);
+    const sent = await sendWhatsApp(title, summary, hr, spo2, lat, lng, locSource, manual);
+
+    const alert = {
+      type: type,
+      manualTrigger: manual,
+      heartRate: hr,
+      spo2: spo2,
+      lat: lat,
+      lng: lng,
+      locSource: locSource,
+      summary: summary,
+      whatsapp: sent,
+      acknowledged: false,
+      ts: now
+    };
+
+    const push = await db().ref('alerts').push(alert);
+
+    const latestUpdate = {
+      heartRate: hr,
+      spo2: spo2,
+      lat: lat,
+      lng: lng,
+      locSource: locSource,
+      ts: now
+    };
+    await db().ref('devices/'+deviceId+'/latest').update(latestUpdate);
+
+    sendJson(res, 200, {ok:true, id: push.key});
+  }catch(e){
+    sendJson(res, 500, {error:'server'});
   }
 };

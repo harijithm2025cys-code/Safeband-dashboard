@@ -1,8 +1,5 @@
+node_modules
 .env
 .env.local
-node_modules/
-.pio/
-**/.pio/
-dist/
-.vercel/
-**/secrets.h
+.vercel
+.DS_Store

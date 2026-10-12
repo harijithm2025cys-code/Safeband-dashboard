@@ -1,855 +1,1519 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SafeBand: fall alerts for elders</title>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<style>
-:root{--bg:#0a1628;--panel:#10213a;--line:#223a5e;--ink:#e8f1f5;--mute:#93a9bf;--cy:#3ee6e0;--red:#ff6b57;--ok:#6be39a;--amber:#f59e0b}
-*{box-sizing:border-box;margin:0}
-html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--ink);font:16px/1.55 Sora,system-ui,sans-serif}
-a{color:var(--cy)}
-.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
-nav{position:sticky;top:0;z-index:1000;background:#0a1628ee;backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-nav .wrap{display:flex;gap:18px;align-items:center;height:54px;overflow-x:auto;white-space:nowrap}
-nav b{margin-right:8px;font-weight:800}
-nav a{color:var(--mute);text-decoration:none;font-size:14px}
-nav a:hover{color:var(--ink)}
-.nav-auth{display:flex;align-items:center;gap:12px;margin-left:auto}
-.nav-email{color:var(--mute);font-size:13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-section{padding:56px 0}
-h1{font-size:clamp(30px,5vw,50px);line-height:1.1;font-weight:800;max-width:14em}
-h2{font-size:26px;font-weight:800;margin-bottom:18px}
-.lead{color:var(--mute);max-width:34em;margin:16px 0 24px}
-.hero{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;align-items:center;padding-top:40px}
-#stage{height:360px;min-width:0}
-#stage canvas{width:100%!important;height:100%!important}
-.btn{display:inline-block;background:var(--cy);color:#06222a;font:600 15px Sora,sans-serif;border:0;border-radius:10px;padding:11px 18px;cursor:pointer;text-decoration:none;transition:opacity .15s}
-.btn:hover{opacity:.92}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
-.btn.ghost:hover{border-color:var(--cy)}
-.btn:focus-visible,a:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--cy);outline-offset:3px}
-.pill{display:inline-block;font-size:13px;border:1px solid var(--line);border-radius:99px;padding:3px 12px;color:var(--mute)}
-.pill.on{color:var(--ok);border-color:var(--ok)}
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SafeBand — Fall detection for elders</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <style>
+        :root {
+            --bg: #0a1224;
+            --bg-2: #0d1830;
+            --panel: #101c38;
+            --line: #1e2c4c;
+            --txt: #e6ecff;
+            --muted: #8ba0c9;
+            --cyan: #3ee6e0;
+            --red: #ff6b57;
+            --green: #6be39a;
+            --amber: #ffbf4d;
+            --radius: 14px;
+        }
 
-/* Connection badge */
-.conn-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px}
-.conn-header h2{margin-bottom:0}
-.conn-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:99px;font-size:13px;font-weight:600;border:1px solid var(--red);background:#241114;color:var(--red);transition:all .2s}
-.conn-badge.on{border-color:var(--ok);background:#0e2a22;color:var(--ok)}
-.conn-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
-.conn-seen{color:var(--mute);font-size:12px;font-weight:400;margin-left:4px}
+        * {
+            box-sizing: border-box
+        }
 
-/* Stats cards */
-.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0;transition:border-color .2s,background .2s}
-.card small{color:var(--mute);display:block}
-.card .v{font-size:28px;font-weight:800;margin-top:4px}
-.card .v.s{font-size:16px;margin-top:10px}
-.card.warn-red{border-color:var(--red);background:#2a1114}
-.card.warn-red small{color:#fca5a5}
-.card.warn-red .v{color:var(--red)}
-.card.warn-amber{border-color:var(--amber);background:#261b07}
-.card.warn-amber small{color:#fcd34d}
-.card.warn-amber .v{color:var(--amber)}
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--txt);
+            font-family: 'Sora', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased
+        }
 
-/* Impact bar */
-.impact-bar-wrap{position:relative;height:8px;background:#081525;border-radius:4px;margin-top:10px}
-.impact-bar{height:100%;border-radius:4px;background:var(--cy);width:0%;transition:width .3s}
-.card.warn-red .impact-bar{background:var(--red)}
-.impact-threshold-line{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--red);z-index:2}
-.impact-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--mute);margin-top:4px}
+        a {
+            color: var(--cyan);
+            text-decoration: none
+        }
 
-/* Alerts and banners */
-.two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
-#map{height:280px;border-radius:10px;margin-top:8px;background:#0d1b30}
-canvas#chart{width:100%;height:150px;margin-top:8px}
-#banner{display:none;background:var(--red);color:#2a0803;font-weight:600;padding:12px 20px}
-.countdown-banner{background:var(--red);color:#2a0803;font-weight:700;padding:12px 18px;border-radius:10px;margin-bottom:16px;text-align:center;font-size:15px}
-.alert{border-top:1px solid var(--line);padding:12px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-.alert:first-child{border:0}
-.tag{font-weight:800;color:var(--red)}
-.alert .m{color:var(--mute);font-size:14px;flex:1 1 220px}
-.alert button{padding:6px 12px;font-size:13px}
+        a:hover {
+            text-decoration: underline
+        }
 
-/* Rules panel */
-.rules-panel{margin-top:16px}
-.rules-list{list-style:none;padding:0;margin-top:10px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
-.rules-list li{background:#0b192e;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.45}
-.rules-list b{color:var(--cy);display:block;margin-bottom:3px}
+        button {
+            font-family: inherit;
+            cursor: pointer
+        }
 
-/* Caregiver login card */
-.login-card{max-width:440px;margin:0 auto;padding:32px 28px}
-.login-sub{color:var(--mute);font-size:14px;margin:-10px 0 20px}
-.field{margin-bottom:18px}
-.field label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:6px}
-.label-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
-.label-row label{margin-bottom:0}
-.field input{width:100%;background:#091424;border:1px solid var(--line);border-radius:10px;padding:11px 14px;color:var(--ink);font:15px Sora,sans-serif;outline:none;transition:border-color .15s}
-.field input:focus{border-color:var(--cy)}
-.pw-box{position:relative;display:flex;align-items:center}
-.pw-box input{padding-right:74px}
-.pw-toggle{position:absolute;right:6px;padding:6px 10px;font-size:12px;border-radius:8px;line-height:1}
-.link-btn{background:none;border:none;color:var(--cy);font:600 13px Sora,sans-serif;cursor:pointer;padding:0;text-decoration:none}
-.link-btn:hover{text-decoration:underline}
-.login-note{color:var(--mute);font-size:13px;text-align:center;margin-top:20px}
-.form-msg{padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;margin-bottom:16px;line-height:1.4}
-.form-msg.err{background:#2a1114;border:1px solid var(--red);color:var(--red)}
-.form-msg.ok{background:#0e2a22;border:1px solid var(--ok);color:var(--ok)}
+        :focus-visible {
+            outline: 2px solid var(--cyan);
+            outline-offset: 2px;
+            border-radius: 6px
+        }
 
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;counter-reset:s;list-style:none;padding:0}
-.steps li{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;counter-increment:s;font-size:14px}
-.steps li::before{content:counter(s);display:block;color:var(--cy);font-weight:800;font-size:22px}
-table{width:100%;border-collapse:collapse;font-size:14px}
-td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
-th{color:var(--mute);font-weight:400}
-footer{border-top:1px solid var(--line);padding:28px 0;color:var(--mute);font-size:14px}
+        .wrap {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 0 18px
+        }
 
-@media(max-width:980px){
-  .stats{grid-template-columns:repeat(3,1fr)}
-}
-@media(max-width:800px){
-  .hero,.two{grid-template-columns:1fr}
-  #stage{height:280px}
-}
-@media(max-width:560px){
-  .stats{grid-template-columns:repeat(2,1fr);gap:8px}
-}
-@media(max-width:420px){
-  .wrap{padding:0 14px}
-  .login-card{padding:24px 16px}
-  .card{padding:12px}
-  .card .v{font-size:24px}
-  nav .wrap{gap:12px}
-}
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
-</style>
+        header.nav {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: rgba(10, 18, 36, .85);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--line)
+        }
+
+        .nav-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 0;
+            gap: 12px
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            letter-spacing: .2px
+        }
+
+        .logo {
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--cyan), #2a9bd6);
+            box-shadow: 0 0 18px rgba(62, 230, 224, .55)
+        }
+
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end
+        }
+
+        .chip {
+            background: #0f2044;
+            border: 1px solid var(--line);
+            color: var(--muted);
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px
+        }
+
+        .btn {
+            background: linear-gradient(135deg, var(--cyan), #24c1b6);
+            color: #062018;
+            border: 0;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-weight: 600
+        }
+
+        .btn.ghost {
+            background: transparent;
+            color: var(--txt);
+            border: 1px solid var(--line)
+        }
+
+        .btn:disabled {
+            opacity: .5;
+            cursor: not-allowed
+        }
+
+        .btn.sm {
+            padding: 6px 12px;
+            font-size: 13px
+        }
+
+        .btn.danger {
+            background: linear-gradient(135deg, var(--red), #e1503d);
+            color: #2a0c07
+        }
+
+        section {
+            padding: 56px 0;
+            border-bottom: 1px solid var(--line)
+        }
+
+        h1 {
+            font-size: clamp(26px, 4vw, 44px);
+            line-height: 1.15;
+            margin: 0 0 14px
+        }
+
+        h2 {
+            font-size: clamp(20px, 2.4vw, 28px);
+            margin: 0 0 14px
+        }
+
+        h3 {
+            font-size: 18px;
+            margin: 0 0 10px
+        }
+
+        p {
+            color: var(--muted);
+            line-height: 1.65
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: 1.1fr .9fr;
+            gap: 28px;
+            align-items: center
+        }
+
+        @media(max-width:900px) {
+            .hero {
+                grid-template-columns: 1fr
+            }
+        }
+
+        #scene {
+            width: 100%;
+            aspect-ratio: 1/1;
+            max-height: 520px;
+            border-radius: var(--radius);
+            overflow: hidden;
+            background: radial-gradient(circle at 30% 20%, #122347, #080f1e 70%)
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-top: 18px
+        }
+
+        @media(max-width:900px) {
+            .steps {
+                grid-template-columns: repeat(2, 1fr)
+            }
+        }
+
+        .step {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px
+        }
+
+        .step b {
+            display: block;
+            color: var(--cyan);
+            font-size: 12px;
+            margin-bottom: 6px
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--panel);
+            border-radius: 12px;
+            overflow: hidden
+        }
+
+        th,
+        td {
+            padding: 12px 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--line);
+            font-size: 14px
+        }
+
+        th {
+            color: var(--muted);
+            font-weight: 500;
+            background: #0c1a35
+        }
+
+        tr:last-child td {
+            border-bottom: 0
+        }
+
+        .roadmap {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px
+        }
+
+        @media(max-width:900px) {
+            .roadmap {
+                grid-template-columns: 1fr
+            }
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 18px
+        }
+
+        footer {
+            padding: 28px 0;
+            color: var(--muted);
+            font-size: 13px;
+            text-align: center
+        }
+
+        .auth-wrap {
+            display: grid;
+            place-items: center;
+            padding: 48px 0
+        }
+
+        .auth-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 26px;
+            width: min(420px, 100%)
+        }
+
+        .auth-card h2 {
+            margin-top: 0
+        }
+
+        .field {
+            margin: 12px 0
+        }
+
+        .field label {
+            display: block;
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 6px
+        }
+
+        .field .row {
+            display: flex;
+            gap: 8px
+        }
+
+        input[type=email],
+        input[type=password] {
+            flex: 1;
+            width: 100%;
+            padding: 12px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: #0b1833;
+            color: var(--txt);
+            font-family: inherit;
+            font-size: 14px
+        }
+
+        .msg {
+            margin-top: 10px;
+            font-size: 13px;
+            min-height: 18px
+        }
+
+        .msg.err {
+            color: var(--red)
+        }
+
+        .msg.ok {
+            color: var(--green)
+        }
+
+        .foot-note {
+            margin-top: 14px;
+            color: var(--muted);
+            font-size: 12.5px;
+            text-align: center
+        }
+
+        #monitor {
+            display: none
+        }
+
+        .m-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-bottom: 18px
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid var(--line);
+            background: #0c1832
+        }
+
+        .badge.on {
+            color: #062018;
+            background: linear-gradient(135deg, var(--green), #4fcb86);
+            border-color: transparent
+        }
+
+        .badge.off {
+            color: #2a0c07;
+            background: linear-gradient(135deg, var(--red), #e1503d);
+            border-color: transparent
+        }
+
+        .badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #fff;
+            opacity: .9
+        }
+
+        .grid-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px
+        }
+
+        @media(max-width:900px) {
+            .grid-cards {
+                grid-template-columns: repeat(2, 1fr)
+            }
+        }
+
+        @media(max-width:520px) {
+            .grid-cards {
+                grid-template-columns: 1fr
+            }
+        }
+
+        .stat {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 16px
+        }
+
+        .stat .k {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 8px;
+            letter-spacing: .4px;
+            text-transform: uppercase
+        }
+
+        .stat .v {
+            font-size: 30px;
+            font-weight: 700;
+            letter-spacing: .3px
+        }
+
+        .stat .u {
+            font-size: 14px;
+            color: var(--muted);
+            margin-left: 4px;
+            font-weight: 500
+        }
+
+        .stat.danger {
+            border-color: #7a2c22;
+            box-shadow: 0 0 0 1px rgba(255, 107, 87, .15) inset
+        }
+
+        .stat.danger .v {
+            color: var(--red)
+        }
+
+        .stat.amber .v {
+            color: var(--amber)
+        }
+
+        .stat.ok .v {
+            color: var(--green)
+        }
+
+        .bar {
+            position: relative;
+            height: 10px;
+            background: #0b1833;
+            border-radius: 8px;
+            margin-top: 12px;
+            overflow: hidden
+        }
+
+        .bar .fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, var(--cyan), #2b9ed6);
+            width: 0
+        }
+
+        .bar .line {
+            position: absolute;
+            top: -3px;
+            bottom: -3px;
+            width: 2px;
+            background: var(--red);
+            opacity: .8
+        }
+
+        .chart-wrap {
+            margin-top: 22px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px
+        }
+
+        canvas {
+            width: 100%;
+            height: 220px;
+            display: block
+        }
+
+        .chart-cap {
+            font-size: 12.5px;
+            color: var(--muted);
+            margin-top: 8px
+        }
+
+        .map-wrap {
+            margin-top: 22px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            overflow: hidden
+        }
+
+        #map {
+            height: 340px;
+            width: 100%;
+            background: #0b1833
+        }
+
+        .map-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-top: 1px solid var(--line);
+            font-size: 13px;
+            color: var(--muted)
+        }
+
+        .tag {
+            font-size: 11.5px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #0f2044;
+            border: 1px solid var(--line);
+            color: var(--muted)
+        }
+
+        .rules {
+            margin-top: 22px
+        }
+
+        .rules ul {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 14px
+        }
+
+        #history {
+            display: none
+        }
+
+        .alert-banner {
+            background: linear-gradient(135deg, #8b2c22, #d94a36);
+            color: #fff;
+            padding: 14px 16px;
+            border-radius: 12px;
+            margin: 14px 0;
+            font-weight: 600;
+            display: none
+        }
+
+        .alert-banner.show {
+            display: block
+        }
+
+        .alert-row {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px
+        }
+
+        .alert-row .top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap
+        }
+
+        .alert-row .t {
+            font-weight: 700
+        }
+
+        .alert-row .meta {
+            font-size: 12.5px;
+            color: var(--muted);
+            margin-top: 6px
+        }
+
+        .alert-row .sum {
+            margin-top: 8px;
+            font-size: 14px;
+            color: var(--txt);
+            line-height: 1.55
+        }
+
+        .manual-tag {
+            background: #2a3a63;
+            color: #cfe0ff;
+            border: 1px solid #3b5185;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            margin-left: 8px
+        }
+
+        .ack-pill {
+            background: #0f2f23;
+            color: #8bf0b8;
+            border: 1px solid #1f5a3f;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 999px
+        }
+
+        .error-box {
+            background: #2a1417;
+            border: 1px solid #7a2c22;
+            color: #ffb4a6;
+            padding: 14px;
+            border-radius: 12px;
+            margin: 14px 0;
+            display: none
+        }
+
+        .error-box.show {
+            display: block
+        }
+
+        @media(prefers-reduced-motion:reduce) {
+            * {
+                animation-duration: .001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: .001ms !important
+            }
+        }
+    </style>
 </head>
+
 <body>
-<div id="banner" role="alert"></div>
-<nav>
-  <div class="wrap">
-    <b>SafeBand</b>
-    <a href="#live" id="navLiveLink" style="display:none">Live</a>
-    <a href="#alerts" id="navAlertsLink" style="display:none">Alerts</a>
-    <a href="#how">How it works</a>
-    <a href="#hardware">Hardware</a>
-    <a href="#next">Next steps</a>
-    <div id="navAuthLoggedOut" class="nav-auth">
-      <a href="#loginSection" id="navLoginBtn" class="btn" style="padding:6px 14px;font-size:13px">Caregiver login</a>
-    </div>
-    <div id="navAuthLoggedIn" class="nav-auth" style="display:none">
-      <span id="userEmail" class="nav-email"></span>
-      <button id="signOutBtn" type="button" class="btn ghost" style="padding:6px 12px;font-size:13px">Sign out</button>
-    </div>
-  </div>
-</nav>
 
-<header class="wrap hero">
-  <div>
-    <h1>SafeBand tells your family within seconds when an elder falls.</h1>
-    <p class="lead">A low-cost wrist band for elders in rural India. It detects a fall, sends the location to WhatsApp, and lets the wearer cancel a false alarm with one press.</p>
-    <a class="btn" id="heroCta" href="#loginSection">Caregiver login</a> <a class="btn ghost" href="#how">How it works</a>
-  </div>
-  <div id="stage" aria-label="3D model of the SafeBand prototype"></div>
-</header>
-
-<section id="loginSection">
-  <div class="wrap">
-    <div class="login-card card">
-      <h2>Caregiver login</h2>
-      <p class="login-sub">Sign in to view live band vitals and alert history.</p>
-      <div id="loginMsg" class="form-msg" role="alert" style="display:none"></div>
-      <form id="loginForm" novalidate>
-        <div class="field">
-          <label for="loginEmail">Email</label>
-          <input type="email" id="loginEmail" name="email" autocomplete="email" required placeholder="caregiver@example.com" spellcheck="false" autofocus>
+    <header class="nav">
+        <div class="wrap nav-inner">
+            <div class="brand">
+                <div class="logo" aria-hidden="true"></div>SafeBand
+            </div>
+            <div class="nav-actions">
+                <span id="navUser" class="chip" style="display:none"></span>
+                <button id="navSignOut" class="btn ghost sm" style="display:none">Sign out</button>
+                <button id="navLogin" class="btn sm">Caregiver login</button>
+            </div>
         </div>
-        <div class="field">
-          <div class="label-row">
-            <label for="loginPassword">Password</label>
-            <button type="button" id="forgotPwBtn" class="link-btn">Forgot password?</button>
-          </div>
-          <div class="pw-box">
-            <input type="password" id="loginPassword" name="password" autocomplete="current-password" required placeholder="••••••••">
-            <button type="button" id="togglePwBtn" class="btn ghost pw-toggle" aria-label="Show password" aria-pressed="false">Show</button>
-          </div>
+    </header>
+
+    <div id="errorBox" class="error-box wrap">Cannot reach the server. Refresh the page.</div>
+
+    <section class="wrap" id="hero">
+        <div class="hero">
+            <div>
+                <h1>SafeBand tells your family within seconds when an elder falls.</h1>
+                <p>A wrist-worn band that watches for falls, low oxygen, and abnormal heart rate — and alerts a
+                    caregiver over WhatsApp within seconds. Built for elders in rural India.</p>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
+                    <button class="btn" onclick="document.getElementById('how').scrollIntoView({behavior:'smooth'})">How
+                        it works</button>
+                    <button class="btn ghost"
+                        onclick="document.getElementById('monitor').scrollIntoView({behavior:'smooth'})">Live
+                        monitor</button>
+                </div>
+            </div>
+            <div id="scene" aria-hidden="true"></div>
         </div>
-        <button type="submit" id="loginSubmitBtn" class="btn" style="width:100%;margin-top:8px">Log in</button>
-      </form>
-      <p class="login-note">Accounts are created by the SafeBand team.</p>
-    </div>
-  </div>
-</section>
+    </section>
 
-<section id="live" style="display:none">
-  <div class="wrap">
-    <div id="liveError" class="card" style="display:none;color:var(--red);border-color:var(--red);margin-bottom:16px;padding:12px 16px;font-weight:600" role="alert">Cannot reach the server. Refresh the page.</div>
-    <div id="countdownBanner" class="countdown-banner" role="alert" style="display:none">Fall detected on the band. Waiting 10 s for the wearer to cancel.</div>
-    
-    <div class="conn-header">
-      <h2>Live monitor</h2>
-      <div class="conn-badge" id="connBadge">
-        <span class="conn-dot"></span>
-        <span id="connText">Not connected</span>
-        <span class="conn-seen" id="connSeen">Last seen: Never</span>
-      </div>
-    </div>
-
-    <div class="stats">
-      <div class="card" id="cardHr"><small>Heart rate</small><div class="v" id="hr">00</div></div>
-      <div class="card" id="cardSpo2"><small>SpO2</small><div class="v" id="spo2">00</div></div>
-      <div class="card" id="cardImpact">
-        <small>Impact (peak g, last 5 s)</small>
-        <div class="v" id="impactVal">00</div>
-        <div class="impact-bar-wrap">
-          <div class="impact-bar" id="impactBar"></div>
-          <div class="impact-threshold-line" title="Threshold: 2.5 g" style="left:62.5%"></div>
+    <section class="wrap" id="how">
+        <h2>How it works</h2>
+        <div class="steps">
+            <div class="step"><b>01 · SENSE</b>MPU-6050 accelerometer samples 100&nbsp;Hz to detect a free fall and
+                impact.</div>
+            <div class="step"><b>02 · CONFIRM</b>Stillness after impact starts a 10-second countdown with a buzzer and
+                vibration.</div>
+            <div class="step"><b>03 · CANCEL</b>A single press on the band's button cancels a false alarm.</div>
+            <div class="step"><b>04 · SEND</b>If not cancelled, the ESP32 posts the alert and vitals over Wi-Fi to this
+                site.</div>
+            <div class="step"><b>05 · NOTIFY</b>The caregiver gets a WhatsApp message with a short summary and a map
+                link.</div>
         </div>
-        <div class="impact-labels"><span>0 g</span><span>2.5 g threshold</span><span>4 g</span></div>
-      </div>
-      <div class="card" id="cardFallState"><small>Fall state</small><div class="v s" id="fallStateVal">IDLE</div></div>
-      <div class="card" id="cardSrc"><small>Location source</small><div class="v s" id="src">Unavailable</div></div>
-      <div class="card" id="cardSeen"><small>Last update</small><div class="v s" id="seen">Never</div></div>
-    </div>
+    </section>
 
-    <div class="two">
-      <div class="card"><small id="chartCaption">No readings yet</small><canvas id="chart" width="600" height="150"></canvas></div>
-      <div class="card"><small id="mapNote">Location unavailable</small><div id="map"></div></div>
-    </div>
+    <section class="wrap" id="hardware">
+        <h2>Hardware</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Part</th>
+                    <th>Role</th>
+                    <th>Approx. cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>ESP32 DevKit</td>
+                    <td>Wi-Fi, control, TLS</td>
+                    <td>₹420</td>
+                </tr>
+                <tr>
+                    <td>MPU-6050</td>
+                    <td>Fall detection (accel + gyro)</td>
+                    <td>₹180</td>
+                </tr>
+                <tr>
+                    <td>MAX30102</td>
+                    <td>Heart rate and SpO₂</td>
+                    <td>₹320</td>
+                </tr>
+                <tr>
+                    <td>NEO-6M GPS</td>
+                    <td>Outdoor position</td>
+                    <td>₹350</td>
+                </tr>
+                <tr>
+                    <td>SSD1306 OLED</td>
+                    <td>Time, HR, SpO₂ display</td>
+                    <td>₹160</td>
+                </tr>
+                <tr>
+                    <td>Buzzer, motor, button, LEDs</td>
+                    <td>User feedback</td>
+                    <td>₹140</td>
+                </tr>
+                <tr>
+                    <td>Enclosure, strap, wiring</td>
+                    <td>Wearable body</td>
+                    <td>₹100</td>
+                </tr>
+                <tr>
+                    <td colspan="2"><b>Total (prototype)</b></td>
+                    <td><b>₹1,670</b></td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
 
-    <div class="card rules-panel">
-      <small style="font-weight:700;color:var(--cy);text-transform:uppercase;letter-spacing:.5px">Alert rules</small>
-      <ul class="rules-list">
-        <li><b>Fall:</b> Impact above 2.5 g then 2 s of stillness, then a 10 s countdown (1 press cancels), then the alert goes out.</li>
-        <li><b>Manual fall:</b> 2 or more quick presses.</li>
-        <li><b>SOS:</b> Hold the button 3 s.</li>
-        <li><b>Low oxygen:</b> SpO2 below 90% for 10 s.</li>
-        <li><b>Heart rate warning:</b> Below 50 or above 120 (display only).</li>
-      </ul>
-    </div>
-  </div>
-</section>
+    <section class="wrap" id="roadmap">
+        <h2>Roadmap &amp; sponsorship</h2>
+        <div class="roadmap">
+            <div class="card">
+                <h3>Now</h3>
+                <p>Working wrist prototype, live caregiver dashboard, WhatsApp alerts. Field visit at Keerambur Medu.
+                </p>
+            </div>
+            <div class="card">
+                <h3>Next</h3>
+                <p>50-house pilot with two rural clinics. Battery optimisation, strap comfort, and clinic-side
+                    dashboard.</p>
+            </div>
+            <div class="card">
+                <h3>Ask</h3>
+                <p>₹5,000 per pilot band. Support for LTE fallback, a 5-pack for ASHA workers, and travel to two more
+                    villages.</p>
+            </div>
+        </div>
+    </section>
 
-<section id="alerts" style="display:none">
-  <div class="wrap">
-    <h2>Alert history</h2>
-    <div class="card" id="alertList"><span style="color:var(--mute)">No alerts yet</span></div>
-  </div>
-</section>
+    <section class="wrap auth-wrap" id="authSection">
+        <div class="auth-card">
+            <h2>Caregiver login</h2>
+            <form id="loginForm" autocomplete="on">
+                <div class="field">
+                    <label for="email">Email</label>
+                    <input id="email" type="email" autocomplete="email" required aria-required="true" />
+                </div>
+                <div class="field">
+                    <label for="password">Password</label>
+                    <div class="row">
+                        <input id="password" type="password" autocomplete="current-password" required
+                            aria-required="true" />
+                        <button type="button" class="btn ghost sm" id="togglePwd"
+                            aria-label="Show password">Show</button>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px">
+                    <button class="btn" id="loginBtn" type="submit">Log in</button>
+                    <button class="btn ghost sm" id="forgotBtn" type="button">Forgot password?</button>
+                </div>
+                <div id="loginMsg" class="msg" role="status" aria-live="polite"></div>
+                <div class="foot-note">Accounts are created by the SafeBand team.</div>
+            </form>
+        </div>
+    </section>
 
-<section id="how">
-  <div class="wrap">
-    <h2>How it works</h2>
-    <ol class="steps">
-      <li>The motion sensor spots a hard impact, then stillness.</li>
-      <li>The band vibrates for 10 seconds. One press cancels a false alarm.</li>
-      <li>No cancel: the band captures heart rate, oxygen and location.</li>
-      <li>A WhatsApp message with a map link reaches the caregiver.</li>
-      <li>The caregiver acknowledges it here on the dashboard.</li>
-    </ol>
-    <p class="lead" style="margin-top:16px">Location uses GPS first. If GPS has no fix, it falls back to Wi-Fi, then internet location, then the last known position. The dashboard always shows which one was used.</p>
-  </div>
-</section>
+    <section class="wrap" id="monitor" style="display:none">
+        <div class="m-head">
+            <h2 style="margin:0">Live monitor</h2>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <span class="badge off" id="connBadge"><span class="dot"></span>Not connected</span>
+                <span class="chip" id="lastSeen">Last seen —</span>
+                <span class="chip">device: safeband-01</span>
+            </div>
+        </div>
 
-<section id="hardware">
-  <div class="wrap">
-    <h2>Hardware in the prototype</h2>
-    <div class="card"><table>
-      <tr><th>Part</th><th>Job</th></tr>
-      <tr><td>ESP32</td><td>Brain, Wi-Fi, runs the fall logic</td></tr>
-      <tr><td>MPU-6050</td><td>Detects impact and stillness</td></tr>
-      <tr><td>MAX30102</td><td>Heart rate and SpO2 from a fingertip sensor</td></tr>
-      <tr><td>NEO-6M GPS</td><td>Outdoor position</td></tr>
-      <tr><td>OLED display</td><td>Watch face with time, vitals and countdown</td></tr>
-      <tr><td>Vibration motor and button</td><td>Silent warning and one-press cancel</td></tr>
-    </table></div>
-    <p class="lead" style="margin-top:12px">Hardware cost is about Rs 1,670, a small fraction of a smartwatch.</p>
-  </div>
-</section>
+        <div class="grid-cards">
+            <div class="stat" id="statHr">
+                <div class="k">Heart rate</div>
+                <div><span class="v" id="vHr">00</span><span class="u">bpm</span></div>
+            </div>
+            <div class="stat" id="statSpo2">
+                <div class="k">SpO₂</div>
+                <div><span class="v" id="vSpo2">00</span><span class="u">%</span></div>
+            </div>
+            <div class="stat" id="statImpact">
+                <div class="k">Impact (peak g)</div>
+                <div><span class="v" id="vImpact">00</span><span class="u">g</span></div>
+                <div class="bar">
+                    <div class="fill" id="impactFill"></div>
+                    <div class="line" id="impactLine"></div>
+                </div>
+            </div>
+            <div class="stat" id="statFall">
+                <div class="k">Fall state</div>
+                <div class="v" id="vFall" style="font-size:22px">IDLE</div>
+            </div>
+            <div class="stat" id="statLocSrc">
+                <div class="k">Location source</div>
+                <div class="v" id="vLocSrc" style="font-size:20px">Unavailable</div>
+            </div>
+            <div class="stat" id="statUpdated">
+                <div class="k">Last update</div>
+                <div class="v" id="vUpdated" style="font-size:20px">Never</div>
+            </div>
+        </div>
 
-<section id="next">
-  <div class="wrap">
-    <h2>Next steps and sponsorship</h2>
-    <ol class="steps">
-      <li>Prototype built and working.</li>
-      <li>Pilot with 10 elders at Keerambur Medu.</li>
-      <li>Add a GSM fallback for areas without Wi-Fi.</li>
-      <li>Smaller enclosure and battery.</li>
-      <li>Safety certification and a caregiver mobile app.</li>
-    </ol>
-    <p class="lead" style="margin-top:16px">We are asking for support to fund pilot units, a certified enclosure, and field trials.</p>
-  </div>
-</section>
+        <div class="alert-banner" id="countdownBanner">Fall detected on the band. Waiting 10 s for the wearer to cancel.
+        </div>
 
-<footer><div class="wrap">Team KERNEL CREW: Harijith, Sugesh S, Karthik Koushal V V. Sri Eshwar College of Engineering, Coimbatore. Mentor: Dr. M. Suriya.</div></footer>
+        <div class="chart-wrap">
+            <canvas id="chart" width="1100" height="220"></canvas>
+            <div class="chart-cap" id="chartCap">No readings yet</div>
+        </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script>
-const THRESHOLDS = {
-  impactG: 2.5,
-  stillMs: 2000,
-  countdownS: 10,
-  spo2Low: 90,
-  spo2HoldS: 10,
-  hrWarnLow: 50,
-  hrWarnHigh: 120
-};
+        <div class="map-wrap">
+            <div id="map"></div>
+            <div class="map-bar">
+                <span id="mapCoord">No coordinates</span>
+                <span class="tag" id="mapSrcTag">source: —</span>
+            </div>
+        </div>
 
-const DEV = 'safeband-01', $ = id => document.getElementById(id);
-const SRC = { gps: 'GPS', wifi: 'Wi-Fi (approximate)', ip: 'Internet (approximate)', last: 'Last known', none: 'Unavailable' };
-const TITLE = { FALL: 'Fall', LOW_SPO2: 'Low SpO2', SOS: 'SOS' };
-let live = { hr: null, spo2: null, accelPeakG: null, fallState: null, lat: null, lng: null, src: 'none', acc: null, ts: 0 };
-let hist = [], alerts = {}, seenIds = null;
-let db = null, auth = null, devRef = null, alertsRef = null, serverOffset = 0;
+        <div class="card rules">
+            <h3>Alert rules</h3>
+            <ul>
+                <li><b>Fall:</b> impact above the threshold, then stillness, then a 10-second countdown; one press
+                    cancels.</li>
+                <li><b>Manual fall:</b> press the button on the band.</li>
+                <li><b>Low oxygen:</b> SpO₂ below 90% for 10 seconds.</li>
+                <li><b>Heart rate warning:</b> below 50 or above 120 (display only, no alert sent).</li>
+            </ul>
+        </div>
+    </section>
 
-/* ---------- 3D band ---------- */
-let drawOled = () => {};
-(function stage() {
-  try {
-    const el = $('stage'), w = el.clientWidth, h = el.clientHeight;
-    const r = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setSize(w, h); el.appendChild(r.domElement);
-    const s = new THREE.Scene(), c = new THREE.PerspectiveCamera(40, w / h, .1, 50); c.position.set(0, 0, 7);
-    s.add(new THREE.AmbientLight(0xffffff, .75));
-    const d = new THREE.DirectionalLight(0xffffff, .9); d.position.set(3, 4, 5); s.add(d);
-    const g = new THREE.Group(); s.add(g);
-    g.add(new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.8, .6), new THREE.MeshStandardMaterial({ color: 0xf2f5f7, roughness: .5 })));
-    [-1, 1].forEach(x => { const m = new THREE.Mesh(new THREE.BoxGeometry(.9, .8, .2), new THREE.MeshStandardMaterial({ color: 0x1b3a5c })); m.position.set(x * 1.8, 0, -.15); g.add(m); });
-    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
-    const cx = cv.getContext('2d'), tex = new THREE.CanvasTexture(cv);
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.4, .7), new THREE.MeshBasicMaterial({ map: tex })); scr.position.z = .31; g.add(scr);
-    const sens = new THREE.Mesh(new THREE.BoxGeometry(.35, .35, .12), new THREE.MeshStandardMaterial({ color: 0x111111 })); sens.position.set(2.4, -1.5, 0); g.add(sens);
-    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(1.2, -.9, 0), new THREE.Vector3(1.5, -1.9, .2), new THREE.Vector3(2.1, -1.6, .1), new THREE.Vector3(2.4, -1.5, 0)]);
-    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, .03, 6), new THREE.MeshStandardMaterial({ color: 0x3ee6e0 })));
-    drawOled = () => {
-      const n = new Date();
-      cx.fillStyle = '#02121a'; cx.fillRect(0, 0, 256, 128); cx.fillStyle = '#3ee6e0';
-      cx.font = '700 54px monospace'; cx.textAlign = 'center';
-      cx.fillText(String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'), 128, 62);
-      const now = Date.now() + serverOffset;
-      const isOnline = live.ts > 0 && (now - live.ts) < 15000 && (now - live.ts) >= 0;
-      const oledHr = isOnline && live.hr != null ? live.hr : '00';
-      const oledSpo2 = isOnline && live.spo2 != null ? live.spo2 : '00';
-      cx.font = '20px monospace'; cx.fillText('HR ' + oledHr + '  O2 ' + oledSpo2, 128, 104);
-      tex.needsUpdate = true;
-    };
-    drawOled(); setInterval(drawOled, 1000);
-    const reduce = matchMedia('(prefers-reduced-motion:reduce)').matches;
-    let tx = 0, ty = 0;
-    addEventListener('pointermove', e => { tx = (e.clientX / innerWidth - .5) * .8; ty = (e.clientY / innerHeight - .5) * .6; });
-    (function loop(t) {
-      g.rotation.y += (tx + (reduce ? 0 : Math.sin(t / 1600) * .35) - g.rotation.y) * .06;
-      g.rotation.x += (ty - .15 - g.rotation.x) * .06;
-      r.render(s, c); requestAnimationFrame(loop);
-    })(0);
-    addEventListener('resize', () => { const W = el.clientWidth, H = el.clientHeight; r.setSize(W, H); c.aspect = W / H; c.updateProjectionMatrix(); });
-  } catch (e) { $('stage').style.display = 'none'; }
-})();
+    <section class="wrap" id="history" style="display:none">
+        <h2>Alert history</h2>
+        <div class="alert-banner" id="newAlertBanner">New alert received.</div>
+        <div id="alertList"></div>
+    </section>
 
-/* ---------- map + chart ---------- */
-const map = L.map('map', { attributionControl: true }).setView([20, 0], 2);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
-let dot = null, ring = null;
+    <footer>
+        <div class="wrap">
+            Team KERNEL CREW — Harijith, Sugesh&nbsp;S, Karthik Koushal&nbsp;V&nbsp;V<br />
+            Sri Eshwar College of Engineering, Coimbatore · Mentor: Dr.&nbsp;M.&nbsp;Suriya
+        </div>
+    </footer>
 
-function drawMap() {
-  if (live.lat == null || live.lng == null) {
-    $('mapNote').textContent = 'Location unavailable';
-    if (dot) { map.removeLayer(dot); dot = null; }
-    if (ring) { map.removeLayer(ring); ring = null; }
-    return;
-  }
-  const p = [live.lat, live.lng];
-  $('mapNote').textContent = 'Location: ' + (SRC[live.src] || 'Unavailable');
-  if (!dot) {
-    dot = L.circleMarker(p, { radius: 8, color: '#3ee6e0', fillOpacity: .9 }).addTo(map);
-    ring = L.circle(p, { radius: live.acc || 50, color: '#3ee6e0', weight: 1 }).addTo(map);
-    map.setView(p, 15);
-  } else {
-    dot.setLatLng(p);
-    ring.setLatLng(p);
-    ring.setRadius(live.acc || 50);
-  }
-}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script>
+        (function () {
+            "use strict";
 
-function line(ctx, arr, lo, hi, color, W, H) {
-  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); let started = false;
-  arr.forEach((v, i) => {
-    if (v == null) return;
-    const x = i / 59 * W, y = H - 8 - (Math.min(Math.max(v, lo), hi) - lo) / (hi - lo) * (H - 16);
-    started ? ctx.lineTo(x, y) : ctx.moveTo(x, y); started = true;
-  });
-  ctx.stroke();
-}
+            const THRESHOLDS = {
+                impactG: 2.5,
+                stillMs: 2000,
+                countdownS: 10,
+                spo2Low: 90,
+                spo2HoldS: 10,
+                hrWarnLow: 50,
+                hrWarnHigh: 120
+            };
+            const DEVICE_ID = "safeband-01";
+            const HR_HISTORY_LEN = 60;
 
-function drawChart() {
-  const cv = $('chart'), ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
-  ctx.clearRect(0, 0, W, H);
-  const caption = $('chartCaption');
-  if (!hist.length) {
-    if (caption) caption.textContent = 'No readings yet';
-    ctx.fillStyle = '#93a9bf';
-    ctx.font = '14px Sora, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('No readings yet', W / 2, H / 2);
-    return;
-  }
-  if (caption) caption.textContent = 'Heart rate (cyan) and SpO2 (green), last 60 readings';
-  line(ctx, hist.map(h => h.hr), 40, 140, '#3ee6e0', W, H);
-  line(ctx, hist.map(h => h.spo2), 85, 100, '#6be39a', W, H);
-}
+            const $ = (s) => document.querySelector(s);
 
-/* ---------- render ---------- */
-function ago(ts) {
-  if (!ts) return 'Never';
-  const now = Date.now() + serverOffset;
-  const s = Math.max(0, Math.round((now - ts) / 1000));
-  return s < 60 ? s + 's ago' : Math.round(s / 60) + ' min ago';
-}
+            const S = {
+                firebase: null, auth: null, db: null,
+                user: null,
+                offsetMs: 0,
+                latestRef: null,
+                alertsRef: null,
+                latestHandler: null,
+                alertChild: null,
+                hrHistory: [],
+                spo2History: [],
+                lastSeenTickId: null,
+                firstAlertLoaded: false,
+                lastAlertTs: 0,
+                map: null,
+                marker: null,
+                accuracyCircle: null,
+                beepCtx: null,
+                lastLatestData: null
+            };
 
-function render() {
-  const now = Date.now() + serverOffset;
-  const ageMs = live.ts ? Math.max(0, now - live.ts) : Infinity;
-  const isOnline = live.ts > 0 && ageMs < 15000;
+            function setText(id, txt) { const el = document.getElementById(id); if (el) el.textContent = String(txt); }
+            function addClass(id, c) { const el = document.getElementById(id); if (el) el.classList.add(c); }
+            function removeClass(id, c) { const el = document.getElementById(id); if (el) el.classList.remove(c); }
+            function showErrorBox(msg) { const e = $("#errorBox"); if (!e) return; e.textContent = msg || "Cannot reach the server. Refresh the page."; e.classList.add("show"); }
+            function hideErrorBox() { const e = $("#errorBox"); if (e) e.classList.remove("show"); }
 
-  // Connection badge
-  const badge = $('connBadge');
-  const connText = $('connText');
-  const connSeen = $('connSeen');
-  if (badge && connText && connSeen) {
-    if (isOnline) {
-      badge.className = 'conn-badge on';
-      connText.textContent = 'Connected to ESP32';
-      connSeen.textContent = 'Last seen ' + ago(live.ts);
-    } else {
-      badge.className = 'conn-badge';
-      connText.textContent = 'Not connected';
-      connSeen.textContent = live.ts ? 'Last seen ' + ago(live.ts) : 'Last seen: Never';
-    }
-  }
+            function init3D() {
+                const el = document.getElementById('scene');
+                if (!el || !window.THREE) return;
+                try {
+                    const w = el.clientWidth || 400;
+                    const h = el.clientHeight || 400;
+                    const scene = new THREE.Scene();
+                    const cam = new THREE.PerspectiveCamera(38, w / h, 0.1, 100);
+                    cam.position.set(0, 0.7, 4.4);
+                    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                    renderer.setSize(w, h);
+                    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                    el.innerHTML = "";
+                    el.appendChild(renderer.domElement);
 
-  // Cards
-  const cardHr = $('cardHr');
-  const cardSpo2 = $('cardSpo2');
-  const cardImpact = $('cardImpact');
-  const cardFall = $('cardFallState');
-  const impactBar = $('impactBar');
-  const cdBanner = $('countdownBanner');
+                    const key = new THREE.DirectionalLight(0xffffff, 1.1); key.position.set(2, 3, 4); scene.add(key);
+                    const fill = new THREE.DirectionalLight(0x3ee6e0, 0.55); fill.position.set(-3, 1, -2); scene.add(fill);
+                    const amb = new THREE.AmbientLight(0x1a2a55, 0.9); scene.add(amb);
 
-  if (isOnline) {
-    $('hr').textContent = live.hr != null ? live.hr : '00';
-    $('spo2').textContent = live.spo2 != null ? live.spo2 + '%' : '00';
-    $('impactVal').textContent = live.accelPeakG != null ? live.accelPeakG.toFixed(2) + ' g' : '00';
-    $('fallStateVal').textContent = live.fallState || 'IDLE';
+                    const band = new THREE.Group();
+                    const body = new THREE.Mesh(
+                        new THREE.BoxGeometry(1.6, 0.55, 1.1),
+                        new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.05 })
+                    );
+                    band.add(body);
 
-    // Impact bar (scale 0..4g)
-    const peak = live.accelPeakG || 0;
-    const barPct = Math.min(100, Math.max(0, (peak / 4.0) * 100));
-    if (impactBar) impactBar.style.width = barPct + '%';
+                    const screenCanvas = document.createElement('canvas');
+                    screenCanvas.width = 256; screenCanvas.height = 128;
+                    const sctx = screenCanvas.getContext('2d');
+                    function drawScreen() {
+                        sctx.fillStyle = "#050816"; sctx.fillRect(0, 0, 256, 128);
+                        sctx.fillStyle = "#3ee6e0";
+                        sctx.font = "bold 44px Sora, system-ui, sans-serif";
+                        const d = new Date();
+                        const hh = String(d.getHours()).padStart(2, '0');
+                        const mm = String(d.getMinutes()).padStart(2, '0');
+                        sctx.fillText(hh + ":" + mm, 20, 60);
+                        sctx.fillStyle = "#8ba0c9";
+                        sctx.font = "20px Sora, system-ui, sans-serif";
+                        sctx.fillText("HR --  O2 --", 20, 100);
+                    }
+                    drawScreen();
+                    setInterval(drawScreen, 1000);
 
-    // Threshold styling
-    if (cardImpact) {
-      if (live.accelPeakG != null && live.accelPeakG > THRESHOLDS.impactG) cardImpact.classList.add('warn-red');
-      else cardImpact.classList.remove('warn-red');
-    }
-    if (cardSpo2) {
-      if (live.spo2 != null && live.spo2 > 0 && live.spo2 < THRESHOLDS.spo2Low) cardSpo2.classList.add('warn-red');
-      else cardSpo2.classList.remove('warn-red');
-    }
-    if (cardHr) {
-      if (live.hr != null && (live.hr < THRESHOLDS.hrWarnLow || live.hr > THRESHOLDS.hrWarnHigh)) cardHr.classList.add('warn-amber');
-      else cardHr.classList.remove('warn-amber');
-    }
+                    const tex = new THREE.CanvasTexture(screenCanvas);
+                    const oled = new THREE.Mesh(
+                        new THREE.PlaneGeometry(1.05, 0.52),
+                        new THREE.MeshBasicMaterial({ map: tex })
+                    );
+                    oled.position.set(0, 0.281, 0);
+                    oled.rotation.x = -Math.PI / 2;
+                    band.add(oled);
 
-    // Countdown banner
-    if (cdBanner) {
-      if (live.fallState === 'COUNTDOWN') cdBanner.style.display = 'block';
-      else if (live.fallState === 'IDLE') cdBanner.style.display = 'none';
-    }
-  } else {
-    // Disconnected state -> show "00" instead of stale values
-    $('hr').textContent = '00';
-    $('spo2').textContent = '00';
-    $('impactVal').textContent = '00';
-    $('fallStateVal').textContent = 'IDLE';
-    if (impactBar) impactBar.style.width = '0%';
-    if (cardImpact) cardImpact.classList.remove('warn-red');
-    if (cardSpo2) cardSpo2.classList.remove('warn-red');
-    if (cardHr) cardHr.classList.remove('warn-amber');
-    if (cdBanner) cdBanner.style.display = 'none';
-  }
+                    const strapMat = new THREE.MeshStandardMaterial({ color: 0xd8e2ff, roughness: 0.55 });
+                    const strapL = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.3, 1.15), strapMat);
+                    strapL.position.set(-1.0, 0, 0); band.add(strapL);
+                    const strapR = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.3, 1.15), strapMat);
+                    strapR.position.set(1.0, 0, 0); band.add(strapR);
 
-  $('src').textContent = SRC[live.src] || 'Unavailable';
-  $('seen').textContent = ago(live.ts);
+                    const finger = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.22, 0.22, 0.16, 24),
+                        new THREE.MeshStandardMaterial({ color: 0x223355, roughness: 0.5 })
+                    );
+                    finger.position.set(0, 0.32, 0.35); band.add(finger);
 
-  drawMap();
-  drawChart();
-  drawOled();
-}
+                    const cableMat = new THREE.MeshStandardMaterial({ color: 0x3ee6e0, roughness: 0.35, emissive: 0x0c3f3c });
+                    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.9, 12), cableMat);
+                    cable.position.set(0.35, 0.15, 0.6); cable.rotation.z = -0.4; band.add(cable);
 
-function renderAlerts() {
-  const box = $('alertList'), ids = Object.keys(alerts).sort((a, b) => alerts[b].ts - alerts[a].ts);
-  box.textContent = '';
-  if (!ids.length) {
-    const emptySpan = document.createElement('span');
-    emptySpan.style.color = 'var(--mute)';
-    emptySpan.textContent = 'No alerts yet';
-    box.appendChild(emptySpan);
-    return;
-  }
-  ids.forEach(id => {
-    const a = alerts[id], row = document.createElement('div'); row.className = 'alert';
-    const t = document.createElement('span'); t.className = 'tag'; t.textContent = TITLE[a.type] || a.type;
-    const m = document.createElement('span'); m.className = 'm';
-    m.textContent = new Date(a.ts).toLocaleString() + ' | HR ' + (a.heartRate ?? '00') + ' | SpO2 ' + (a.spo2 ?? '00') + ' | ' + (SRC[a.locSource] || 'Unavailable') + (a.manualTrigger ? ' | Manual' : '') + (a.summary ? ' | ' + a.summary : '');
-    row.append(t, m);
-    if (a.acknowledged) {
-      const k = document.createElement('span'); k.className = 'pill on'; k.textContent = 'Acknowledged'; row.append(k);
-    } else {
-      const b = document.createElement('button'); b.className = 'btn'; b.textContent = 'Acknowledge'; b.onclick = () => ack(id); row.append(b);
-    }
-    box.append(row);
-  });
-}
+                    scene.add(band);
 
-function ack(id) {
-  if (!db || !auth || !auth.currentUser) return;
-  db.ref('alerts/' + id + '/acknowledged').set(true);
-}
+                    let mx = 0, my = 0, tx = 0, ty = 0;
+                    el.addEventListener('mousemove', (e) => {
+                        const r = el.getBoundingClientRect();
+                        mx = ((e.clientX - r.left) / r.width - 0.5) * 2;
+                        my = ((e.clientY - r.top) / r.height - 0.5) * 2;
+                    });
 
-function banner(text) {
-  const b = $('banner'); b.textContent = text; b.style.display = 'block';
-  setTimeout(() => b.style.display = 'none', 8000);
-}
+                    function loop() {
+                        tx += (mx - tx) * 0.06;
+                        ty += (my - ty) * 0.06;
+                        band.rotation.y = tx * 0.9;
+                        band.rotation.x = -ty * 0.5;
+                        renderer.render(scene, cam);
+                        requestAnimationFrame(loop);
+                    }
+                    loop();
 
-function playBeep() {
-  try {
-    const a = new (window.AudioContext || webkitAudioContext)(), o = a.createOscillator();
-    o.frequency.value = 880; o.connect(a.destination); o.start(); setTimeout(() => o.stop(), 350);
-  } catch (e) {}
-}
+                    window.addEventListener('resize', () => {
+                        const W = el.clientWidth, H = el.clientHeight;
+                        cam.aspect = W / H; cam.updateProjectionMatrix();
+                        renderer.setSize(W, H);
+                    });
+                } catch (e) {
+                    el.style.display = 'none';
+                }
+            }
 
-function checkNew() {
-  const ids = Object.keys(alerts);
-  if (seenIds === null) { seenIds = new Set(ids); return; }
-  const newOnes = ids.filter(i => !seenIds.has(i));
-  if (newOnes.length > 0) {
-    newOnes.forEach(i => {
-      seenIds.add(i);
-      const al = alerts[i];
-      if (al && al.type === 'FALL') {
-        const cd = $('countdownBanner');
-        if (cd) cd.style.display = 'none';
-      }
-      banner('New alert: ' + (TITLE[al.type] || al.type));
-    });
-    playBeep();
-  }
-}
+            async function loadConfig() {
+                try {
+                    const r = await fetch('/api/config', { cache: 'no-store' });
+                    if (!r.ok) throw new Error('config');
+                    const cfg = await r.json();
+                    if (!cfg || !cfg.apiKey || !cfg.databaseURL) throw new Error('config');
+                    return cfg;
+                } catch (e) {
+                    showErrorBox("Cannot reach the server. Refresh the page.");
+                    return null;
+                }
+            }
 
-function push(v) {
-  live = v;
-  if (v.hr != null) { hist.push({ hr: v.hr, spo2: v.spo2 }); if (hist.length > 60) hist.shift(); }
-  render();
-}
+            function initFirebase(cfg) {
+                S.firebase = firebase.initializeApp(cfg);
+                S.auth = firebase.auth();
+                S.db = firebase.database();
+                S.db.ref('.info/serverTimeOffset').on('value', (snap) => {
+                    S.offsetMs = (snap.val() || 0);
+                });
+            }
 
-/* ---------- UI state: Login vs Dashboard ---------- */
-function showLogin() {
-  $('loginSection').style.display = 'block';
-  $('live').style.display = 'none';
-  $('alerts').style.display = 'none';
-  $('navLiveLink').style.display = 'none';
-  $('navAlertsLink').style.display = 'none';
-  $('navAuthLoggedOut').style.display = 'flex';
-  $('navAuthLoggedIn').style.display = 'none';
-  const heroCta = $('heroCta');
-  if (heroCta) {
-    heroCta.href = '#loginSection';
-    heroCta.textContent = 'Caregiver login';
-  }
-  const emailField = $('loginEmail');
-  if (emailField && document.activeElement !== emailField) {
-    emailField.focus();
-  }
-}
+            function setAuthUI(user) {
+                const navUser = document.getElementById('navUser');
+                const navSignOut = document.getElementById('navSignOut');
+                const navLogin = document.getElementById('navLogin');
+                const authSection = document.getElementById('authSection');
+                const monitor = document.getElementById('monitor');
+                const history = document.getElementById('history');
 
-function showDashboard(email) {
-  $('loginSection').style.display = 'none';
-  $('live').style.display = 'block';
-  $('alerts').style.display = 'block';
-  $('navLiveLink').style.display = '';
-  $('navAlertsLink').style.display = '';
-  $('navAuthLoggedOut').style.display = 'none';
-  $('navAuthLoggedIn').style.display = 'flex';
-  $('userEmail').textContent = email || 'Caregiver';
-  $('userEmail').title = email || '';
-  const heroCta = $('heroCta');
-  if (heroCta) {
-    heroCta.href = '#live';
-    heroCta.textContent = 'See the live dashboard';
-  }
-  if (map) {
-    setTimeout(() => map.invalidateSize(), 100);
-  }
-}
+                if (user) {
+                    navUser.style.display = ''; navUser.textContent = user.email || '';
+                    navSignOut.style.display = ''; navLogin.style.display = 'none';
+                    authSection.style.display = 'none';
+                    monitor.style.display = ''; history.style.display = '';
+                } else {
+                    navUser.style.display = 'none';
+                    navSignOut.style.display = 'none'; navLogin.style.display = '';
+                    authSection.style.display = '';
+                    monitor.style.display = 'none'; history.style.display = 'none';
+                    resetMonitorToDefaults();
+                    clearAlertList();
+                }
+            }
 
-function clearDashboard() {
-  live = { hr: null, spo2: null, accelPeakG: null, fallState: null, lat: null, lng: null, src: 'none', acc: null, ts: 0 };
-  hist = [];
-  alerts = {};
-  seenIds = null;
-  if (dot && map) { map.removeLayer(dot); dot = null; }
-  if (ring && map) { map.removeLayer(ring); ring = null; }
-  if (map) { map.setView([20, 0], 2); }
-  renderAlerts();
-  render();
-}
+            function friendlyError(code) {
+                switch (code) {
+                    case 'auth/invalid-email': return 'That email address is not valid.';
+                    case 'auth/user-disabled': return 'This account has been disabled.';
+                    case 'auth/user-not-found': return 'No account found with that email.';
+                    case 'auth/wrong-password': return 'Incorrect password. Please try again.';
+                    case 'auth/invalid-credential': return 'Email or password is incorrect.';
+                    case 'auth/too-many-requests': return 'Too many attempts. Please try again later.';
+                    case 'auth/missing-password': return 'Please enter your password.';
+                    case 'auth/network-request-failed': return 'Network error. Check your connection.';
+                    default: return 'Could not log you in. Please try again.';
+                }
+            }
 
-function showConnectionError() {
-  const el = $('liveError');
-  if (el) {
-    el.textContent = 'Cannot reach the server. Refresh the page.';
-    el.style.display = 'block';
-  }
-  const msg = $('loginMsg');
-  if (msg) {
-    msg.className = 'form-msg err';
-    msg.textContent = 'Cannot reach the server. Refresh the page.';
-    msg.style.display = 'block';
-  }
-}
+            function attachAuthListeners() {
+                const form = document.getElementById('loginForm');
+                const msg = document.getElementById('loginMsg');
+                const btn = document.getElementById('loginBtn');
+                const pwd = document.getElementById('password');
+                const pwdBtn = document.getElementById('togglePwd');
+                const forgot = document.getElementById('forgotBtn');
 
-/* ---------- Firebase Database listeners ---------- */
-function attachDb() {
-  if (!db || !auth || !auth.currentUser) return;
-  detachDb();
-  $('liveError').style.display = 'none';
+                pwdBtn.addEventListener('click', () => {
+                    const showing = pwd.type === 'text';
+                    pwd.type = showing ? 'password' : 'text';
+                    pwdBtn.textContent = showing ? 'Show' : 'Hide';
+                    pwdBtn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+                });
 
-  db.ref('.info/serverTimeOffset').on('value', snap => {
-    serverOffset = snap.val() || 0;
-  });
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    msg.className = 'msg'; msg.textContent = '';
+                    btn.disabled = true;
+                    try {
+                        const email = document.getElementById('email').value.trim();
+                        const password = pwd.value;
+                        await S.auth.signInWithEmailAndPassword(email, password);
+                    } catch (err) {
+                        msg.classList.add('err');
+                        msg.textContent = friendlyError(err && err.code);
+                    } finally {
+                        btn.disabled = false;
+                    }
+                });
 
-  devRef = db.ref('devices/' + DEV + '/latest');
-  devRef.on('value', s => {
-    const v = s.val(); if (!v) return;
-    push({
-      hr: v.heartRate ?? null,
-      spo2: v.spo2 ?? null,
-      accelPeakG: v.accelPeakG ?? null,
-      fallState: v.fallState ?? null,
-      lat: v.lat ?? null,
-      lng: v.lng ?? null,
-      src: v.locSource || 'none',
-      acc: v.accuracy ?? null,
-      ts: v.ts || 0
-    });
-  }, () => showConnectionError());
+                forgot.addEventListener('click', async () => {
+                    const email = document.getElementById('email').value.trim();
+                    msg.className = 'msg'; msg.textContent = '';
+                    if (!email) { msg.classList.add('err'); msg.textContent = 'Enter your email first.'; return; }
+                    try {
+                        await S.auth.sendPasswordResetEmail(email);
+                        msg.classList.add('ok'); msg.textContent = 'Reset link sent. Check your inbox.';
+                    } catch (err) {
+                        msg.classList.add('err');
+                        const code = err && err.code;
+                        if (code === 'auth/user-not-found') { msg.textContent = 'No account found with that email.'; }
+                        else { msg.textContent = 'Could not send reset email. Please try again.'; }
+                    }
+                });
 
-  alertsRef = db.ref('alerts').orderByChild('ts').limitToLast(20);
-  alertsRef.on('value', s => {
-    alerts = s.val() || {};
-    checkNew();
-    renderAlerts();
-  }, () => showConnectionError());
-}
+                document.getElementById('navLogin').addEventListener('click', () => {
+                    document.getElementById('authSection').scrollIntoView({ behavior: 'smooth' });
+                    setTimeout(() => document.getElementById('email').focus(), 300);
+                });
+                document.getElementById('navSignOut').addEventListener('click', () => {
+                    S.auth.signOut().catch(() => { });
+                });
+            }
 
-function detachDb() {
-  if (devRef) { devRef.off(); devRef = null; }
-  if (alertsRef) { alertsRef.off(); alertsRef = null; }
-}
+            function resetMonitorToDefaults() {
+                setText('vHr', '00'); setText('vSpo2', '00'); setText('vImpact', '00');
+                setText('vFall', 'IDLE'); setText('vLocSrc', 'Unavailable'); setText('vUpdated', 'Never');
+                setText('lastSeen', 'Last seen —');
+                setText('mapCoord', 'No coordinates');
+                setText('mapSrcTag', 'source: —');
+                setText('chartCap', 'No readings yet');
+                $('#impactFill').style.width = '0%';
+                S.hrHistory = []; S.spo2History = [];
+                drawChart();
+                const b = document.getElementById('connBadge');
+                b.className = 'badge off';
+                b.innerHTML = '<span class="dot"></span>Not connected';
+                removeClass('countdownBanner', 'show');
+                if (S.marker && S.map) { S.map.removeLayer(S.marker); S.marker = null; }
+                if (S.accuracyCircle && S.map) { S.map.removeLayer(S.accuracyCircle); S.accuracyCircle = null; }
+                removeClass('statHr', 'amber'); removeClass('statHr', 'danger');
+                removeClass('statSpo2', 'danger'); removeClass('statImpact', 'danger');
+            }
 
-/* ---------- Auth Form Event Handlers ---------- */
-$('togglePwBtn').onclick = () => {
-  const pw = $('loginPassword');
-  const isPw = pw.type === 'password';
-  pw.type = isPw ? 'text' : 'password';
-  $('togglePwBtn').textContent = isPw ? 'Hide' : 'Show';
-  $('togglePwBtn').setAttribute('aria-label', isPw ? 'Hide password' : 'Show password');
-  $('togglePwBtn').setAttribute('aria-pressed', isPw ? 'true' : 'false');
-};
+            function initMap() {
+                if (S.map) return;
+                try {
+                    S.map = L.map('map', { zoomControl: true, attributionControl: true }).setView([11.0168, 76.9558], 8);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '&copy; OpenStreetMap'
+                    }).addTo(S.map);
+                } catch (e) { /* ignore */ }
+            }
 
-$('loginForm').onsubmit = e => {
-  e.preventDefault();
-  const emailInput = $('loginEmail');
-  const passwordInput = $('loginPassword');
-  const email = emailInput.value.trim();
-  const password = passwordInput.value;
-  const msg = $('loginMsg');
-  const submitBtn = $('loginSubmitBtn');
+            function drawChart() {
+                const canvas = document.getElementById('chart');
+                if (!canvas) return;
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                const w = canvas.clientWidth || 1100;
+                const h = 220;
+                canvas.width = w * dpr; canvas.height = h * dpr;
+                const ctx = canvas.getContext('2d');
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.clearRect(0, 0, w, h);
 
-  msg.style.display = 'none';
-  msg.className = 'form-msg err';
+                ctx.strokeStyle = '#1e2c4c';
+                ctx.lineWidth = 1;
+                for (let i = 1; i < 4; i++) {
+                    const y = (h / 4) * i;
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+                }
+                const hasHr = S.hrHistory.some(v => v > 0);
+                const hasSpo2 = S.spo2History.some(v => v > 0);
+                if (!hasHr && !hasSpo2) {
+                    setText('chartCap', 'No readings yet');
+                    return;
+                }
+                setText('chartCap', 'Last ' + HR_HISTORY_LEN + ' readings');
 
-  if (!email && !password) {
-    msg.textContent = 'Please enter both email and password.';
-    msg.style.display = 'block';
-    emailInput.focus();
-    return;
-  }
-  if (!email) {
-    msg.textContent = 'Please enter your email address.';
-    msg.style.display = 'block';
-    emailInput.focus();
-    return;
-  }
-  if (!password) {
-    msg.textContent = 'Please enter your password.';
-    msg.style.display = 'block';
-    passwordInput.focus();
-    return;
-  }
+                function line(values, color, min, max) {
+                    const n = values.length;
+                    if (n < 2) return;
+                    ctx.strokeStyle = color; ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    for (let i = 0; i < n; i++) {
+                        const x = (w - 1) * (i / (HR_HISTORY_LEN - 1));
+                        const v = values[i];
+                        const t = (v - min) / (max - min);
+                        const y = h - 6 - Math.max(0, Math.min(1, t)) * (h - 12);
+                        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+                }
+                line(S.hrHistory, '#3ee6e0', 40, 180);
+                line(S.spo2History, '#6be39a', 70, 100);
 
-  if (!auth) {
-    msg.textContent = 'Cannot reach the server. Refresh the page.';
-    msg.style.display = 'block';
-    return;
-  }
+                ctx.fillStyle = '#8ba0c9';
+                ctx.font = '12px Sora, system-ui, sans-serif';
+                ctx.fillText('HR', 8, 16);
+                ctx.fillStyle = '#3ee6e0';
+                ctx.fillRect(28, 8, 12, 3);
+                ctx.fillStyle = '#8ba0c9';
+                ctx.fillText('SpO₂', 52, 16);
+                ctx.fillStyle = '#6be39a';
+                ctx.fillRect(88, 8, 12, 3);
+            }
 
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Logging in...';
+            function nowWithOffset() { return Date.now() + S.offsetMs; }
 
-  auth.signInWithEmailAndPassword(email, password)
-    .then(() => {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Log in';
-      passwordInput.value = '';
-    })
-    .catch(err => {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Log in';
-      let friendly = 'Incorrect email or password.';
-      if (err.code === 'auth/too-many-requests') {
-        friendly = 'Too many attempts (try again later).';
-      } else if (err.code === 'auth/network-request-failed') {
-        friendly = 'Network error. Please check your connection.';
-      } else if (err.code === 'auth/invalid-email') {
-        friendly = 'Please enter a valid email address.';
-      } else if (err.code === 'auth/user-disabled') {
-        friendly = 'This account has been disabled. Please contact support.';
-      }
-      msg.textContent = friendly;
-      msg.style.display = 'block';
-      passwordInput.focus();
-    });
-};
+            function applyLatest(data) {
+                const connected = data && typeof data.ts === 'number' && (nowWithOffset() - data.ts) < 15000;
 
-$('forgotPwBtn').onclick = () => {
-  const emailInput = $('loginEmail');
-  const email = emailInput.value.trim();
-  const msg = $('loginMsg');
+                const badge = document.getElementById('connBadge');
+                if (connected) {
+                    badge.className = 'badge on';
+                    badge.innerHTML = '<span class="dot"></span>Connected to ESP32';
+                } else {
+                    badge.className = 'badge off';
+                    badge.innerHTML = '<span class="dot"></span>Not connected';
+                }
 
-  msg.style.display = 'none';
+                if (data && typeof data.ts === 'number') {
+                    const age = Math.max(0, Math.round((nowWithOffset() - data.ts) / 1000));
+                    setText('lastSeen', 'Last seen ' + age + 's ago');
+                } else {
+                    setText('lastSeen', 'Last seen —');
+                }
 
-  if (!email) {
-    msg.className = 'form-msg err';
-    msg.textContent = 'Please enter your email address.';
-    msg.style.display = 'block';
-    emailInput.focus();
-    return;
-  }
+                const offline = !connected;
 
-  if (!auth) {
-    msg.className = 'form-msg err';
-    msg.textContent = 'Cannot reach the server. Refresh the page.';
-    msg.style.display = 'block';
-    return;
-  }
+                const hr = (!offline && Number.isFinite(data.heartRate)) ? data.heartRate : null;
+                setText('vHr', hr === null ? '00' : String(hr));
+                const statHr = document.getElementById('statHr');
+                statHr.classList.remove('danger', 'amber');
+                if (hr !== null && (hr < THRESHOLDS.hrWarnLow || hr > THRESHOLDS.hrWarnHigh)) statHr.classList.add('amber');
 
-  $('forgotPwBtn').disabled = true;
-  auth.sendPasswordResetEmail(email)
-    .then(() => {
-      $('forgotPwBtn').disabled = false;
-      msg.className = 'form-msg ok';
-      msg.textContent = 'Password reset email sent! Check your inbox.';
-      msg.style.display = 'block';
-    })
-    .catch(err => {
-      $('forgotPwBtn').disabled = false;
-      msg.className = 'form-msg err';
-      let friendly = 'Could not send reset email. Please try again.';
-      if (err.code === 'auth/invalid-email') {
-        friendly = 'Please enter a valid email address.';
-      } else if (err.code === 'auth/user-not-found') {
-        friendly = 'No account found with this email.';
-      } else if (err.code === 'auth/too-many-requests') {
-        friendly = 'Too many attempts (try again later).';
-      } else if (err.code === 'auth/network-request-failed') {
-        friendly = 'Network error. Please check your connection.';
-      }
-      msg.textContent = friendly;
-      msg.style.display = 'block';
-    });
-};
+                const sp = (!offline && Number.isFinite(data.spo2)) ? data.spo2 : null;
+                setText('vSpo2', sp === null ? '00' : String(sp));
+                const statSpo2 = document.getElementById('statSpo2');
+                statSpo2.classList.remove('danger');
+                if (sp !== null && sp >= 1 && sp <= 89) statSpo2.classList.add('danger');
 
-$('signOutBtn').onclick = () => {
-  if (auth) {
-    auth.signOut().catch(() => {});
-  }
-};
+                const imp = (!offline && Number.isFinite(data.accelPeakG)) ? data.accelPeakG : null;
+                setText('vImpact', imp === null ? '00' : imp.toFixed(2));
+                const fill = document.getElementById('impactFill');
+                const line = document.getElementById('impactLine');
+                const linePct = Math.max(0, Math.min(1, THRESHOLDS.impactG / 40)) * 100;
+                line.style.left = linePct + '%';
+                if (imp !== null) {
+                    const pct = Math.max(0, Math.min(1, imp / 40)) * 100;
+                    fill.style.width = pct + '%';
+                } else {
+                    fill.style.width = '0%';
+                }
+                const statImpact = document.getElementById('statImpact');
+                statImpact.classList.remove('danger');
+                if (imp !== null && imp > THRESHOLDS.impactG) statImpact.classList.add('danger');
 
-/* ---------- Initialization ---------- */
-const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAOLQIjGcLEQJEjaFy96NkgVZ_zohsUmzI",
-  authDomain: "safeband-148ee.firebaseapp.com",
-  databaseURL: "https://safeband-148ee-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "safeband-148ee",
-  storageBucket: "safeband-148ee.firebasestorage.app",
-  messagingSenderId: "728992274955",
-  appId: "1:728992274955:web:881ee38c9d32fe741f050e"
-};
+                const fs = (!offline && typeof data.fallState === 'string') ? data.fallState : 'IDLE';
+                setText('vFall', fs || 'IDLE');
+                const cdb = document.getElementById('countdownBanner');
+                if (fs === 'COUNTDOWN') cdb.classList.add('show'); else cdb.classList.remove('show');
 
-function initFirebase(cfg) {
-  if (!firebase.apps.length) {
-    firebase.initializeApp(cfg);
-  }
-  auth = firebase.auth();
-  db = firebase.database();
+                const ls = (!offline && typeof data.locSource === 'string') ? data.locSource : 'Unavailable';
+                setText('vLocSrc', labelForSource(ls));
 
-  auth.onAuthStateChanged(user => {
-    if (user) {
-      showDashboard(user.email);
-      attachDb();
-    } else {
-      detachDb();
-      clearDashboard();
-      showLogin();
-    }
-  });
-}
+                if (data && typeof data.ts === 'number') {
+                    const d = new Date(data.ts);
+                    setText('vUpdated', d.toLocaleTimeString());
+                } else {
+                    setText('vUpdated', 'Never');
+                }
 
-fetch('/api/config')
-  .then(r => {
-    if (!r.ok) throw new Error('config request failed');
-    return r.json();
-  })
-  .then(cfg => {
-    if (!cfg.apiKey || !cfg.databaseURL) throw new Error('incomplete config');
-    initFirebase(cfg);
-  })
-  .catch(() => {
-    if (DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey) {
-      initFirebase(DEFAULT_FIREBASE_CONFIG);
-    } else {
-      showConnectionError();
-      showLogin();
-    }
-  });
+                if (connected) {
+                    if (Number.isFinite(data.heartRate)) { S.hrHistory.push(data.heartRate); if (S.hrHistory.length > HR_HISTORY_LEN) S.hrHistory.shift(); }
+                    if (Number.isFinite(data.spo2)) { S.spo2History.push(data.spo2); if (S.spo2History.length > HR_HISTORY_LEN) S.spo2History.shift(); }
+                }
+                drawChart();
 
-setInterval(() => {
-  render();
-}, 1000);
+                initMap();
+                if (S.map) {
+                    const lat = connected && Number.isFinite(data.lat) ? data.lat : null;
+                    const lng = connected && Number.isFinite(data.lng) ? data.lng : null;
+                    const acc = connected && Number.isFinite(data.accuracy) ? data.accuracy : null;
+                    if (lat !== null && lng !== null) {
+                        setText('mapCoord', lat.toFixed(5) + ', ' + lng.toFixed(5));
+                        setText('mapSrcTag', 'source: ' + labelForSource(ls));
+                        if (S.marker) S.map.removeLayer(S.marker);
+                        S.marker = L.circleMarker([lat, lng], { radius: 7, color: '#3ee6e0', fillColor: '#3ee6e0', fillOpacity: .9, weight: 2 }).addTo(S.map);
+                        if (S.accuracyCircle) S.map.removeLayer(S.accuracyCircle);
+                        if (acc) S.accuracyCircle = L.circle([lat, lng], { radius: acc, color: '#3ee6e0', fillOpacity: .08, weight: 1 }).addTo(S.map);
+                        S.map.setView([lat, lng], Math.max(12, S.map.getZoom()));
+                    } else {
+                        setText('mapCoord', 'No coordinates');
+                        setText('mapSrcTag', 'source: —');
+                        if (S.marker) { S.map.removeLayer(S.marker); S.marker = null; }
+                        if (S.accuracyCircle) { S.map.removeLayer(S.accuracyCircle); S.accuracyCircle = null; }
+                    }
+                }
+            }
 
-renderAlerts();
-render();
-</script>
+            function labelForSource(src) {
+                switch (src) {
+                    case 'gps': return 'GPS';
+                    case 'wifi': return 'approximate (Wi-Fi)';
+                    case 'ip': return 'approximate (internet)';
+                    case 'last': return 'last known position';
+                    case 'none': return 'Unavailable';
+                    default: return 'Unavailable';
+                }
+            }
+
+            function startLastSeenTicker() {
+                if (S.lastSeenTickId) return;
+                S.lastSeenTickId = setInterval(() => {
+                    const el = document.getElementById('monitor');
+                    if (!el || el.style.display === 'none') return;
+                    if (S.lastLatestData) { applyLatest(S.lastLatestData); }
+                }, 1000);
+            }
+
+            function attachLatestListener() {
+                if (!S.db) return;
+                if (S.latestRef && S.latestHandler) {
+                    S.latestRef.off('value', S.latestHandler);
+                }
+                S.latestRef = S.db.ref('devices/' + DEVICE_ID + '/latest');
+                S.latestHandler = (snap) => {
+                    try {
+                        const data = snap.val() || {};
+                        S.lastLatestData = data;
+                        applyLatest(data);
+                    } catch (e) { /* ignore */ }
+                };
+                S.latestRef.on('value', S.latestHandler, () => {
+                    showErrorBox("Cannot reach the server. Refresh the page.");
+                });
+            }
+
+            function clearAlertList() {
+                const list = document.getElementById('alertList');
+                if (list) list.innerHTML = '';
+                S.firstAlertLoaded = false;
+                S.lastAlertTs = 0;
+                removeClass('newAlertBanner', 'show');
+            }
+
+            function ensureBeep() {
+                try {
+                    if (!S.beepCtx) {
+                        const Ctx = window.AudioContext || window.webkitAudioContext;
+                        if (Ctx) S.beepCtx = new Ctx();
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            function shortBeep() {
+                try {
+                    ensureBeep();
+                    if (!S.beepCtx) return;
+                    const o = S.beepCtx.createOscillator();
+                    const g = S.beepCtx.createGain();
+                    o.type = 'sine'; o.frequency.value = 880;
+                    g.gain.value = 0.04;
+                    o.connect(g); g.connect(S.beepCtx.destination);
+                    o.start(); o.stop(S.beepCtx.currentTime + 0.15);
+                } catch (e) { /* ignore */ }
+            }
+
+            function renderAlertRow(alert) {
+                const row = document.createElement('div');
+                row.className = 'alert-row';
+
+                const top = document.createElement('div');
+                top.className = 'top';
+
+                const left = document.createElement('div');
+                const t = document.createElement('div');
+                t.className = 't';
+                t.textContent = String(alert.type || 'ALERT');
+                left.appendChild(t);
+                if (alert.manualTrigger) {
+                    const m = document.createElement('span');
+                    m.className = 'manual-tag';
+                    m.textContent = 'Manual';
+                    left.appendChild(m);
+                }
+
+                const right = document.createElement('div');
+                const time = document.createElement('div');
+                time.className = 'meta';
+                time.textContent = alert.ts ? new Date(alert.ts).toLocaleString() : '';
+                right.appendChild(time);
+
+                top.appendChild(left); top.appendChild(right);
+                row.appendChild(top);
+
+                const meta = document.createElement('div');
+                meta.className = 'meta';
+                const hr = Number.isFinite(alert.heartRate) ? alert.heartRate + ' bpm' : '—';
+                const sp = Number.isFinite(alert.spo2) ? alert.spo2 + '%' : '—';
+                meta.textContent = 'HR ' + hr + '  ·  SpO₂ ' + sp + '  ·  source: ' + labelForSource(alert.locSource || 'none');
+                row.appendChild(meta);
+
+                if (alert.summary) {
+                    const sum = document.createElement('div');
+                    sum.className = 'sum';
+                    sum.textContent = String(alert.summary);
+                    row.appendChild(sum);
+                }
+
+                const actions = document.createElement('div');
+                actions.style.marginTop = '10px';
+                if (alert.acknowledged) {
+                    const pill = document.createElement('span');
+                    pill.className = 'ack-pill';
+                    pill.textContent = 'Acknowledged';
+                    actions.appendChild(pill);
+                } else {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn sm ghost';
+                    btn.textContent = 'Acknowledge';
+                    btn.addEventListener('click', async () => {
+                        try {
+                            if (!S.db || !alert.id) return;
+                            await S.db.ref('alerts/' + alert.id + '/acknowledged').set(true);
+                        } catch (e) { /* ignore */ }
+                    });
+                    actions.appendChild(btn);
+                }
+                row.appendChild(actions);
+
+                return row;
+            }
+
+            function attachAlertsListener() {
+                if (!S.db) return;
+                if (S.alertsRef && S.alertChild) {
+                    S.alertsRef.off('child_added', S.alertChild);
+                }
+                S.alertsRef = S.db.ref('alerts').orderByChild('ts').limitToLast(20);
+                S.firstAlertLoaded = false;
+
+                S.alertChild = (snap) => {
+                    try {
+                        const val = snap.val() || {};
+                        val.id = snap.key;
+                        const list = document.getElementById('alertList');
+                        if (!list) return;
+
+                        const row = renderAlertRow(val);
+                        const first = list.firstChild;
+                        if (first) list.insertBefore(row, first); else list.appendChild(row);
+
+                        while (list.childNodes.length > 20) list.removeChild(list.lastChild);
+
+                        if (typeof val.ts === 'number' && val.ts > S.lastAlertTs) {
+                            if (S.firstAlertLoaded) {
+                                addClass('newAlertBanner', 'show');
+                                shortBeep();
+                                setTimeout(() => removeClass('newAlertBanner', 'show'), 4000);
+                            }
+                            S.lastAlertTs = val.ts;
+                        }
+                        S.firstAlertLoaded = true;
+                    } catch (e) { /* ignore */ }
+                };
+                S.alertsRef.on('child_added', S.alertChild, () => {
+                    showErrorBox("Cannot reach the server. Refresh the page.");
+                });
+            }
+
+            function detachAllDbListeners() {
+                try {
+                    if (S.latestRef && S.latestHandler) S.latestRef.off('value', S.latestHandler);
+                    if (S.alertsRef && S.alertChild) S.alertsRef.off('child_added', S.alertChild);
+                } catch (e) { /* ignore */ }
+                S.latestRef = null; S.alertsRef = null; S.latestHandler = null; S.alertChild = null;
+                S.lastLatestData = null;
+            }
+
+            async function boot() {
+                attachAuthListeners();
+                init3D();
+                const cfg = await loadConfig();
+                if (!cfg) { return; }
+                try {
+                    initFirebase(cfg);
+                    startLastSeenTicker();
+                    S.auth.onAuthStateChanged((user) => {
+                        S.user = user;
+                        setAuthUI(user);
+                        if (user) {
+                            attachLatestListener();
+                            attachAlertsListener();
+                        } else {
+                            detachAllDbListeners();
+                        }
+                    });
+                } catch (e) {
+                    showErrorBox("Cannot reach the server. Refresh the page.");
+                }
+            }
+
+            document.addEventListener('DOMContentLoaded', boot);
+        })();
+    </script>
 </body>
+
 </html>

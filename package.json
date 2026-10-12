@@ -1,7 +1,9 @@
 {
-  "name": "safeband-web",
-  "version": "1.0.0",
-  "private": true,
-  "engines": { "node": ">=18" },
-  "dependencies": { "firebase-admin": "^12.6.0" }
+    "name": "safeband-v2-dashboard",
+    "version": "1.0.0",
+    "private": true,
+    "description": "SafeBand caregiver dashboard and API",
+    "dependencies": {
+        "firebase-admin": "^12.3.1"
+    }
 }
