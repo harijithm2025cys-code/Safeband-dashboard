@@ -1,158 +1,45 @@
-import admin from 'firebase-admin';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import twilio from 'twilio';
-import dotenv from 'dotenv';
+const admin = require('firebase-admin');
 
-dotenv.config();
-
-// In-memory alert rate limiter (1 alert per device per 30s)
-const alertTimestamps = new Map();
-
-export function verifyDeviceSecret(req) {
-  const secretHeader = req.headers['x-device-secret'];
-  const expectedSecret = process.env.DEVICE_SECRET;
-  if (!expectedSecret) return true; // development fallback if not set
-  return secretHeader === expectedSecret;
+function db() {
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)),
+      databaseURL: process.env.VITE_FIREBASE_DATABASE_URL,
+    });
+  }
+  return admin.database();
 }
 
-export function checkAlertRateLimit(deviceId) {
-  const now = Date.now();
-  const lastTime = alertTimestamps.get(deviceId) || 0;
-  if (now - lastTime < 30000) {
-    return false; // Rate limited (within 30s)
+function guard(req, res) {
+  if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return false; }
+  const s = req.headers['x-device-secret'];
+  if (!process.env.DEVICE_SECRET || s !== process.env.DEVICE_SECRET) {
+    res.status(401).json({ error: 'unauthorized' });
+    return false;
   }
-  alertTimestamps.set(deviceId, now);
   return true;
 }
 
-// Reset rate limit (useful for testing)
-export function resetRateLimit(deviceId) {
-  if (deviceId) alertTimestamps.delete(deviceId);
-  else alertTimestamps.clear();
+// null/undefined -> null, in range -> number, anything else -> NaN (invalid)
+const num = (v, lo, hi) => (v === null || v === undefined ? null : typeof v === 'number' && v >= lo && v <= hi ? v : NaN);
+
+function clean(b) {
+  if (!b || typeof b !== 'object') return { err: 'body' };
+  if (typeof b.deviceId !== 'string' || !/^[\w-]{1,40}$/.test(b.deviceId)) return { err: 'deviceId' };
+  const o = {
+    deviceId: b.deviceId,
+    heartRate: num(b.heartRate, 20, 250),
+    spo2: num(b.spo2, 50, 100),
+    lat: num(b.lat, -90, 90),
+    lng: num(b.lng, -180, 180),
+    accuracy: num(b.accuracy, 0, 1e6),
+  };
+  for (const k of ['heartRate', 'spo2', 'lat', 'lng', 'accuracy']) if (Number.isNaN(o[k])) return { err: k };
+  if ((o.lat === null) !== (o.lng === null)) return { err: 'lat/lng' };
+  const src = b.locSource ?? 'none';
+  if (!['gps', 'wifi', 'ip', 'last', 'none'].includes(src)) return { err: 'locSource' };
+  o.locSource = o.lat === null ? 'none' : src;
+  return { v: o };
 }
 
-let dbInstance = null;
-
-export function getFirebaseDb() {
-  if (dbInstance) return dbInstance;
-
-  try {
-    if (!admin.apps.length) {
-      const saEnv = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-      const dbUrl = process.env.VITE_FIREBASE_DATABASE_URL || process.env.FIREBASE_DATABASE_URL;
-
-      if (saEnv) {
-        let serviceAccount;
-        try {
-          serviceAccount = typeof saEnv === 'string' ? JSON.parse(saEnv) : saEnv;
-        } catch {
-          // If multiline JSON or escaped string
-          serviceAccount = JSON.parse(saEnv.replace(/\\n/g, '\n'));
-        }
-
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount),
-          databaseURL: dbUrl
-        });
-      } else {
-        admin.initializeApp({
-          databaseURL: dbUrl
-        });
-      }
-    }
-    dbInstance = admin.database();
-    return dbInstance;
-  } catch (err) {
-    console.error('[Firebase Admin] Initialization warning:', err.message);
-    return null;
-  }
-}
-
-export async function generateCaregiverSummary(alert) {
-  const defaultFallback = `SafeBand Alert: ${alert.type} detected on device ${alert.deviceId || 'safeband-01'}.\nImmediate caregiver attention is advised.`;
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return defaultFallback;
-
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-    const prompt = `You are the SafeBand caregiver alert assistant.
-Generate a strictly 2-line caregiver summary for this incident:
-Device: ${alert.deviceId}
-Event Type: ${alert.type}
-Heart Rate: ${alert.heartRate || 'N/A'} BPM
-SpO2: ${alert.spo2 || 'N/A'} %
-Location Source: ${alert.locSource || 'unknown'}
-Coordinates: ${alert.lat && alert.lng ? `${alert.lat}, ${alert.lng}` : 'Not available'}
-
-Keep the response to exactly two concise, calm, actionable lines for the caregiver.`;
-
-    const result = await model.generateContent(prompt);
-    const text = result?.response?.text()?.trim();
-    if (text) {
-      // Ensure max 2 lines
-      return text.split('\n').filter(Boolean).slice(0, 2).join('\n');
-    }
-    return defaultFallback;
-  } catch (err) {
-    console.error('[Gemini] Generation failed, using fallback:', err.message);
-    return defaultFallback;
-  }
-}
-
-export function getLocationSourceLabel(locSource) {
-  switch ((locSource || '').toLowerCase()) {
-    case 'gps':
-      return 'Precise (GPS fix)';
-    case 'wifi':
-      return 'Approximate (Wi-Fi triangulation)';
-    case 'ip':
-      return 'Approximate (IP geolocation)';
-    case 'last':
-      return 'Last known historical location';
-    default:
-      return 'Location unavailable';
-  }
-}
-
-export async function sendTwilioNotification(alert, summary) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM;
-  const to = process.env.CAREGIVER_WHATSAPP_TO;
-
-  if (!sid || !token || !from || !to) {
-    return { success: false, reason: 'Twilio credentials not configured' };
-  }
-
-  try {
-    const client = twilio(sid, token);
-    const locLabel = getLocationSourceLabel(alert.locSource);
-    const mapsLink = (alert.lat && alert.lng)
-      ? `\n📍 Map: https://www.google.com/maps?q=${alert.lat},${alert.lng}`
-      : '\n📍 Location: Not available';
-
-    const vitalsText = (alert.heartRate || alert.spo2)
-      ? `💓 Vitals: HR ${alert.heartRate ? alert.heartRate + ' BPM' : 'N/A'} | SpO2 ${alert.spo2 ? alert.spo2 + '%' : 'N/A'}`
-      : '💓 Vitals: Sensor unattached / null';
-
-    const messageBody = `🚨 *SafeBand Alert: ${alert.type}*\n` +
-      `Device: ${alert.deviceId || 'safeband-01'}\n` +
-      `Summary: ${summary}\n` +
-      `${vitalsText}\n` +
-      `📡 Fix: ${locLabel}${mapsLink}`;
-
-    const msg = await client.messages.create({
-      body: messageBody,
-      from: from.startsWith('whatsapp:') ? from : `whatsapp:${from}`,
-      to: to.startsWith('whatsapp:') ? to : `whatsapp:${to}`
-    });
-
-    return { success: true, sid: msg.sid };
-  } catch (err) {
-    console.error('[Twilio] Notification failed, proceeding without error:', err.message);
-    return { success: false, error: err.message };
-  }
-}
+module.exports = { db, guard, clean };

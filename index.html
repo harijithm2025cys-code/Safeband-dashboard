@@ -1,245 +1,289 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#070d17">
-  <title>SafeBand v2 | Caregiver Dashboard</title>
-  
-  <!-- Modern Inter Typography -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  
-  <!-- Leaflet Map CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-  
-  <link rel="stylesheet" href="styles.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SafeBand: fall alerts for elders</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#0a1628;--panel:#10213a;--line:#223a5e;--ink:#e8f1f5;--mute:#93a9bf;--cy:#3ee6e0;--red:#ff6b57;--ok:#6be39a}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 Sora,system-ui,sans-serif}
+a{color:var(--cy)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+nav{position:sticky;top:0;z-index:5;background:#0a1628ee;backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;gap:20px;align-items:center;height:54px;overflow-x:auto;white-space:nowrap}
+nav b{margin-right:auto;font-weight:800}
+nav a{color:var(--mute);text-decoration:none;font-size:14px}
+section{padding:56px 0}
+h1{font-size:clamp(30px,5vw,50px);line-height:1.1;font-weight:800;max-width:14em}
+h2{font-size:26px;font-weight:800;margin-bottom:18px}
+.lead{color:var(--mute);max-width:34em;margin:16px 0 24px}
+.hero{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;align-items:center;padding-top:40px}
+#stage{height:360px;min-width:0}
+#stage canvas{width:100%!important;height:100%!important}
+.btn{display:inline-block;background:var(--cy);color:#06222a;font:600 15px Sora,sans-serif;border:0;border-radius:10px;padding:11px 18px;cursor:pointer;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn:focus-visible,a:focus-visible{outline:2px solid var(--cy);outline-offset:3px}
+.pill{display:inline-block;font-size:13px;border:1px solid var(--line);border-radius:99px;padding:3px 12px;color:var(--mute)}
+.pill.on{color:var(--ok);border-color:var(--ok)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.card small{color:var(--mute);display:block}
+.card .v{font-size:32px;font-weight:800;margin-top:4px}
+.card .v.s{font-size:18px;margin-top:10px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+#map{height:280px;border-radius:10px;margin-top:8px;background:#0d1b30}
+canvas#chart{width:100%;height:150px;margin-top:8px}
+#banner{display:none;background:var(--red);color:#2a0803;font-weight:600;padding:12px 20px}
+.alert{border-top:1px solid var(--line);padding:12px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.alert:first-child{border:0}
+.tag{font-weight:800;color:var(--red)}
+.alert .m{color:var(--mute);font-size:14px;flex:1 1 220px}
+.alert button{padding:6px 12px;font-size:13px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;counter-reset:s;list-style:none;padding:0}
+.steps li{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;counter-increment:s;font-size:14px}
+.steps li::before{content:counter(s);display:block;color:var(--cy);font-weight:800;font-size:22px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+th{color:var(--mute);font-weight:400}
+footer{border-top:1px solid var(--line);padding:28px 0;color:var(--mute);font-size:14px}
+@media(max-width:800px){.hero,.two{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}#stage{height:280px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
 </head>
 <body>
-  <div class="app-container">
-    <!-- Sidebar Navigation -->
-    <aside class="sidebar">
-      <a class="brand" href="#" aria-label="SafeBand Home">
-        <div class="brand-icon">S</div>
-        <div>
-          <div class="brand-title">SafeBand</div>
-          <div class="brand-tag">Care System · V2</div>
-        </div>
-      </a>
+<div id="banner" role="alert"></div>
+<nav><div class="wrap"><b>SafeBand</b><a href="#live">Live</a><a href="#alerts">Alerts</a><a href="#how">How it works</a><a href="#hardware">Hardware</a><a href="#next">Next steps</a></div></nav>
 
-      <div class="nav-section-title">Workspace</div>
-      <nav class="nav-menu">
-        <a class="nav-item active" href="#overview"><span class="icon">▦</span> Overview</a>
-        <a class="nav-item" href="#vitals"><span class="icon">♡</span> Live Vitals</a>
-        <a class="nav-item" href="#location"><span class="icon">⌖</span> Map & GPS</a>
-        <a class="nav-item" href="#alerts"><span class="icon">⚑</span> Alerts <span class="badge-alert" id="nav-alert-count">0</span></a>
-      </nav>
-
-      <div class="sidebar-footer">
-        <div class="pulse-dot" id="system-status-dot"></div>
-        <div class="sidebar-footer-text">
-          <strong id="system-status-title">Demo Mode</strong>
-          <span id="system-status-desc">Connecting to Firebase...</span>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Main Dashboard Area -->
-    <main class="main-wrapper" id="overview">
-      <header class="top-bar">
-        <div>
-          <h1>Caregiver Console</h1>
-          <p>Real-time telemetry, fall event monitoring, and emergency response dispatch.</p>
-        </div>
-        <div class="top-controls">
-          <span class="status-badge" id="data-mode-badge"><span class="pulse-dot" style="width:6px;height:6px"></span> DEMO DATA</span>
-          <button class="btn" id="btn-refresh" type="button">↻ Refresh Data</button>
-          <button class="btn btn-primary" id="btn-sim-alert" type="button">+ Test Alert</button>
-        </div>
-      </header>
-
-      <!-- Active Emergency Banner (Shows on critical unacknowledged alerts) -->
-      <section class="critical-banner" id="active-alert-banner">
-        <div class="critical-banner-content">
-          <div class="critical-banner-icon">!</div>
-          <div>
-            <strong id="banner-alert-title" style="color:#fff;font-size:14px">EMERGENCY ALERT: FALL DETECTED</strong>
-            <p id="banner-alert-desc" style="color:#fecdd3;font-size:12px;margin:2px 0 0">Caregiver notification dispatched via Twilio WhatsApp. Immediate verification required.</p>
-          </div>
-        </div>
-        <button class="btn btn-danger" id="banner-btn-ack" type="button">✓ Acknowledge Alert</button>
-      </section>
-
-      <!-- Wearer Profile Row -->
-      <section class="wearer-card">
-        <div class="wearer-meta">
-          <h2>
-            SafeBand Wearer 
-            <span class="status-badge live" id="wearer-online-badge"><i></i> Device Active</span>
-          </h2>
-          <div style="margin-top:4px">
-            <span style="color:var(--text-muted);font-size:12px">Registered ID: </span>
-            <span class="wearer-id-tag" id="wearer-device-id">safeband-01</span>
-            <span style="color:var(--text-dim);font-size:11px;margin-left:12px" id="last-seen-time">Updated: Just now</span>
-          </div>
-        </div>
-        <div>
-          <button class="btn" id="btn-toggle-demo" type="button" style="font-size:11px">Mode: Auto-Detect</button>
-        </div>
-      </section>
-
-      <!-- 4 Vital Sign Cards -->
-      <section class="metrics-grid" id="vitals" aria-label="Vital Signs">
-        <!-- Heart Rate Card -->
-        <article class="metric-card">
-          <div class="metric-header">
-            <span>Heart Rate</span>
-            <div class="metric-icon-wrap heart heartbeat-anim">♡</div>
-          </div>
-          <div class="metric-body">
-            <span class="metric-value" id="val-heart-rate">76</span>
-            <span class="metric-unit">BPM</span>
-          </div>
-          <div class="metric-footer">
-            <span class="pulse-dot online" style="width:6px;height:6px"></span>
-            <span id="finger-status-text">Optical sensor reading</span>
-          </div>
-        </article>
-
-        <!-- SpO2 Card -->
-        <article class="metric-card">
-          <div class="metric-header">
-            <span>Blood Oxygen</span>
-            <div class="metric-icon-wrap spo2">◉</div>
-          </div>
-          <div class="metric-body">
-            <span class="metric-value" id="val-spo2">98</span>
-            <span class="metric-unit">%</span>
-          </div>
-          <div class="metric-footer">
-            <span class="pulse-dot online" style="width:6px;height:6px"></span>
-            <span id="spo2-status-text">Optimal blood saturation</span>
-          </div>
-        </article>
-
-        <!-- Motion / Accelerometer Card -->
-        <article class="metric-card">
-          <div class="metric-header">
-            <span>Movement Status</span>
-            <div class="metric-icon-wrap motion">⌁</div>
-          </div>
-          <div class="metric-body">
-            <span class="metric-value" id="val-movement" style="font-size:24px">Normal</span>
-          </div>
-          <div class="metric-footer">
-            <span id="accel-magnitude-text">MPU-6050: 1.01 g (Steady)</span>
-          </div>
-        </article>
-
-        <!-- Battery Gauge Card -->
-        <article class="metric-card">
-          <div class="metric-header">
-            <span>Band Battery</span>
-            <div class="metric-icon-wrap battery">ϟ</div>
-          </div>
-          <div class="metric-body">
-            <span class="metric-value" id="val-battery">86</span>
-            <span class="metric-unit">%</span>
-          </div>
-          <div class="battery-bar-container">
-            <div class="battery-bar-fill" id="val-battery-bar" style="width: 86%;"></div>
-          </div>
-        </article>
-      </section>
-
-      <!-- Charts & Leaflet Location Map Grid -->
-      <section class="charts-grid">
-        <!-- Live Vitals Trend Chart -->
-        <article class="panel-card">
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">Vitals Telemetry Stream</div>
-              <div class="panel-subtitle">Continuous Heart Rate (BPM) & Blood Oxygen (SpO2 %)</div>
-            </div>
-          </div>
-          <div class="chart-container">
-            <canvas id="vitalsChart"></canvas>
-          </div>
-        </article>
-
-        <!-- Leaflet Map Panel -->
-        <article class="panel-card" id="location">
-          <div class="panel-header">
-            <div>
-              <div class="panel-title">Wearer Location</div>
-              <div class="panel-subtitle">Fallback chain: GPS → Wi-Fi → IP → Last Known</div>
-            </div>
-            <span class="loc-source-badge" id="map-source-badge">
-              <span>⌖</span> <span id="map-source-text">GPS FIX</span>
-            </span>
-          </div>
-          <div class="map-container" id="map"></div>
-          <div class="location-meta-row">
-            <div>Latitude: <strong id="map-lat">12.9716</strong></div>
-            <div>Longitude: <strong id="map-lng">77.5946</strong></div>
-            <div>Accuracy: <strong id="map-acc">± 3.5 m</strong></div>
-          </div>
-        </article>
-      </section>
-
-      <!-- Alert History Section -->
-      <section class="panel-card" id="alerts" style="margin-bottom:24px">
-        <div class="panel-header">
-          <div>
-            <div class="panel-title">Emergency Alert Feed</div>
-            <div class="panel-subtitle">Real-time alerts, AI caregiver summaries, and dispatch logs</div>
-          </div>
-          <span class="badge-alert" id="alerts-count-badge">0 Alerts</span>
-        </div>
-
-        <div class="alerts-list" id="alerts-container">
-          <div class="empty-state">No alerts recorded yet. System monitoring active.</div>
-        </div>
-      </section>
-
-      <!-- Hardware & Firmware Overview Panel -->
-      <section class="panel-card">
-        <div class="panel-header">
-          <div>
-            <div class="panel-title">Hardware & Safety Architecture</div>
-            <div class="panel-subtitle">SafeBand V2 Pin Assignment & Sensor Integration</div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;font-size:12px">
-          <div style="padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border-color);border-radius:8px">
-            <strong style="color:var(--accent-cyan);display:block">IMU: MPU-6050</strong>
-            <span style="color:var(--text-muted)">I2C 0x68 (SDA 21 / SCL 22) · 100 Hz sampling, impact > 2.5g</span>
-          </div>
-          <div style="padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border-color);border-radius:8px">
-            <strong style="color:var(--accent-rose);display:block">PPG: MAX30102</strong>
-            <span style="color:var(--text-muted)">I2C 0x57 · LED 0x0F, 8 avg · Low SpO2 &lt; 90% for 10s</span>
-          </div>
-          <div style="padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border-color);border-radius:8px">
-            <strong style="color:var(--accent-amber);display:block">GPS: NEO-6M</strong>
-            <span style="color:var(--text-muted)">UART2 (RX 16 / TX 17, 9600 baud) · HDOP &lt; 5.0, age &lt; 10s</span>
-          </div>
-          <div style="padding:10px;background:rgba(255,255,255,0.02);border:1px solid var(--border-color);border-radius:8px">
-            <strong style="color:var(--accent-emerald);display:block">Vibration & Button</strong>
-            <span style="color:var(--text-muted)">GPIO32 Active High · GPIO35 Input (10k pull-up) · 3s SOS</span>
-          </div>
-        </div>
-      </section>
-
-      <footer style="padding:28px 0 10px;color:var(--text-dim);font-size:11px;text-align:center">
-        SafeBand v2 Caregiver System · Real-time Telemetry Dashboard · Medical Disclaimer: Device prototype for assistive monitoring.
-      </footer>
-    </main>
+<header class="wrap hero">
+  <div>
+    <h1>SafeBand tells your family within seconds when an elder falls.</h1>
+    <p class="lead">A low-cost wrist band for elders in rural India. It detects a fall, sends the location to WhatsApp, and lets the wearer cancel a false alarm with one press.</p>
+    <a class="btn" href="#live">See the live dashboard</a> <a class="btn ghost" href="#how">How it works</a>
   </div>
+  <div id="stage" aria-label="3D model of the SafeBand prototype"></div>
+</header>
 
-  <div class="toast" id="toast">Notification</div>
+<section id="live"><div class="wrap">
+  <h2>Live monitor <span id="online" class="pill">Waiting for band</span> <button id="demoBtn" class="btn ghost" style="padding:4px 12px;font-size:13px">Show demo data</button></h2>
+  <div class="stats">
+    <div class="card"><small>Heart rate</small><div class="v" id="hr">--</div></div>
+    <div class="card"><small>SpO2</small><div class="v" id="spo2">--</div></div>
+    <div class="card"><small>Location source</small><div class="v s" id="src">Unavailable</div></div>
+    <div class="card"><small>Last update</small><div class="v s" id="seen">Never</div></div>
+  </div>
+  <div class="two">
+    <div class="card"><small>Heart rate (cyan) and SpO2 (green), last 60 readings</small><canvas id="chart" width="600" height="150"></canvas></div>
+    <div class="card"><small id="mapNote">Location</small><div id="map"></div></div>
+  </div>
+</div></section>
 
-  <!-- Main JavaScript App -->
-  <script type="module" src="/app.js"></script>
+<section id="alerts"><div class="wrap">
+  <h2>Alert history</h2>
+  <div class="card" id="alertList"><span style="color:var(--mute)">No alerts yet. When the band sends one, it appears here instantly.</span></div>
+  <p style="margin-top:12px"><button id="simBtn" class="btn ghost" style="display:none">Simulate a fall (demo)</button></p>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <h2>How it works</h2>
+  <ol class="steps">
+    <li>The motion sensor spots a hard impact, then stillness.</li>
+    <li>The band vibrates for 10 seconds. One press cancels a false alarm.</li>
+    <li>No cancel: the band captures heart rate, oxygen and location.</li>
+    <li>A WhatsApp message with a map link reaches the caregiver.</li>
+    <li>The caregiver acknowledges it here on the dashboard.</li>
+  </ol>
+  <p class="lead" style="margin-top:16px">Location uses GPS first. If GPS has no fix, it falls back to Wi-Fi, then internet location, then the last known position. The dashboard always shows which one was used.</p>
+</div></section>
+
+<section id="hardware"><div class="wrap">
+  <h2>Hardware in the prototype</h2>
+  <div class="card"><table>
+    <tr><th>Part</th><th>Job</th></tr>
+    <tr><td>ESP32</td><td>Brain, Wi-Fi, runs the fall logic</td></tr>
+    <tr><td>MPU-6050</td><td>Detects impact and stillness</td></tr>
+    <tr><td>MAX30102</td><td>Heart rate and SpO2 from a fingertip sensor</td></tr>
+    <tr><td>NEO-6M GPS</td><td>Outdoor position</td></tr>
+    <tr><td>OLED display</td><td>Watch face with time, vitals and countdown</td></tr>
+    <tr><td>Vibration motor and button</td><td>Silent warning and one-press cancel</td></tr>
+  </table></div>
+  <p class="lead" style="margin-top:12px">Hardware cost is about Rs 1,670, a small fraction of a smartwatch.</p>
+</div></section>
+
+<section id="next"><div class="wrap">
+  <h2>Next steps and sponsorship</h2>
+  <ol class="steps">
+    <li>Prototype built and working.</li>
+    <li>Pilot with 10 elders at Keerambur Medu.</li>
+    <li>Add a GSM fallback for areas without Wi-Fi.</li>
+    <li>Smaller enclosure and battery.</li>
+    <li>Safety certification and a caregiver mobile app.</li>
+  </ol>
+  <p class="lead" style="margin-top:16px">We are asking for support to fund pilot units, a certified enclosure, and field trials.</p>
+</div></section>
+
+<footer><div class="wrap">Team KERNEL CREW: Harijith, Sugesh S, Karthik Koushal V V. Sri Eshwar College of Engineering, Coimbatore. Mentor: Dr. M. Suriya.</div></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+const DEV = 'safeband-01', $ = id => document.getElementById(id);
+const SRC = { gps: 'GPS', wifi: 'Wi-Fi (approximate)', ip: 'Internet (approximate)', last: 'Last known', none: 'Unavailable' };
+const TITLE = { FALL: 'Fall', LOW_SPO2: 'Low SpO2', SOS: 'SOS' };
+let live = { hr: null, spo2: null, lat: null, lng: null, src: 'none', acc: null, ts: 0 };
+let hist = [], alerts = {}, seenIds = null, demo = false, db = null, timer = null;
+
+/* ---------- 3D band ---------- */
+let drawOled = () => {};
+(function stage() {
+  try {
+    const el = $('stage'), w = el.clientWidth, h = el.clientHeight;
+    const r = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setSize(w, h); el.appendChild(r.domElement);
+    const s = new THREE.Scene(), c = new THREE.PerspectiveCamera(40, w / h, .1, 50); c.position.set(0, 0, 7);
+    s.add(new THREE.AmbientLight(0xffffff, .75));
+    const d = new THREE.DirectionalLight(0xffffff, .9); d.position.set(3, 4, 5); s.add(d);
+    const g = new THREE.Group(); s.add(g);
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.8, .6), new THREE.MeshStandardMaterial({ color: 0xf2f5f7, roughness: .5 })));
+    [-1, 1].forEach(x => { const m = new THREE.Mesh(new THREE.BoxGeometry(.9, .8, .2), new THREE.MeshStandardMaterial({ color: 0x1b3a5c })); m.position.set(x * 1.8, 0, -.15); g.add(m); });
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
+    const cx = cv.getContext('2d'), tex = new THREE.CanvasTexture(cv);
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(1.4, .7), new THREE.MeshBasicMaterial({ map: tex })); scr.position.z = .31; g.add(scr);
+    const sens = new THREE.Mesh(new THREE.BoxGeometry(.35, .35, .12), new THREE.MeshStandardMaterial({ color: 0x111111 })); sens.position.set(2.4, -1.5, 0); g.add(sens);
+    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(1.2, -.9, 0), new THREE.Vector3(1.5, -1.9, .2), new THREE.Vector3(2.1, -1.6, .1), new THREE.Vector3(2.4, -1.5, 0)]);
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, .03, 6), new THREE.MeshStandardMaterial({ color: 0x3ee6e0 })));
+    drawOled = () => {
+      const n = new Date();
+      cx.fillStyle = '#02121a'; cx.fillRect(0, 0, 256, 128); cx.fillStyle = '#3ee6e0';
+      cx.font = '700 54px monospace'; cx.textAlign = 'center';
+      cx.fillText(String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'), 128, 62);
+      cx.font = '20px monospace'; cx.fillText('HR ' + (live.hr ?? '--') + '  O2 ' + (live.spo2 ?? '--'), 128, 104);
+      tex.needsUpdate = true;
+    };
+    drawOled(); setInterval(drawOled, 1000);
+    const reduce = matchMedia('(prefers-reduced-motion:reduce)').matches;
+    let tx = 0, ty = 0;
+    addEventListener('pointermove', e => { tx = (e.clientX / innerWidth - .5) * .8; ty = (e.clientY / innerHeight - .5) * .6; });
+    (function loop(t) {
+      g.rotation.y += (tx + (reduce ? 0 : Math.sin(t / 1600) * .35) - g.rotation.y) * .06;
+      g.rotation.x += (ty - .15 - g.rotation.x) * .06;
+      r.render(s, c); requestAnimationFrame(loop);
+    })(0);
+    addEventListener('resize', () => { const W = el.clientWidth, H = el.clientHeight; r.setSize(W, H); c.aspect = W / H; c.updateProjectionMatrix(); });
+  } catch (e) { $('stage').style.display = 'none'; }
+})();
+
+/* ---------- map + chart ---------- */
+const map = L.map('map', { attributionControl: true }).setView([11.0168, 76.9558], 11);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+let dot = null, ring = null;
+function drawMap() {
+  if (live.lat == null) { $('mapNote').textContent = 'Location unavailable'; return; }
+  const p = [live.lat, live.lng];
+  $('mapNote').textContent = 'Location: ' + SRC[live.src];
+  if (!dot) { dot = L.circleMarker(p, { radius: 8, color: '#3ee6e0', fillOpacity: .9 }).addTo(map); ring = L.circle(p, { radius: live.acc || 50, color: '#3ee6e0', weight: 1 }).addTo(map); map.setView(p, 15); }
+  dot.setLatLng(p); ring.setLatLng(p); ring.setRadius(live.acc || 50);
+}
+function line(ctx, arr, lo, hi, color, W, H) {
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); let started = false;
+  arr.forEach((v, i) => {
+    if (v == null) return;
+    const x = i / 59 * W, y = H - 8 - (Math.min(Math.max(v, lo), hi) - lo) / (hi - lo) * (H - 16);
+    started ? ctx.lineTo(x, y) : ctx.moveTo(x, y); started = true;
+  });
+  ctx.stroke();
+}
+function drawChart() {
+  const cv = $('chart'), ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+  line(ctx, hist.map(h => h.hr), 40, 140, '#3ee6e0', W, H);
+  line(ctx, hist.map(h => h.spo2), 85, 100, '#6be39a', W, H);
+}
+
+/* ---------- render ---------- */
+function ago(ts) { if (!ts) return 'Never'; const s = Math.round((Date.now() - ts) / 1000); return s < 60 ? s + 's ago' : Math.round(s / 60) + ' min ago'; }
+function render() {
+  $('hr').textContent = live.hr ?? '--';
+  $('spo2').textContent = live.spo2 == null ? '--' : live.spo2 + '%';
+  $('src').textContent = SRC[live.src] || 'Unavailable';
+  $('seen').textContent = ago(live.ts);
+  const on = Date.now() - live.ts < 30000;
+  $('online').textContent = demo ? 'Demo data' : on ? 'Band online' : live.ts ? 'Band offline' : 'Waiting for band';
+  $('online').className = 'pill' + (on ? ' on' : '');
+  drawMap(); drawChart(); drawOled();
+}
+function renderAlerts() {
+  const box = $('alertList'), ids = Object.keys(alerts).sort((a, b) => alerts[b].ts - alerts[a].ts);
+  box.textContent = '';
+  if (!ids.length) { box.textContent = 'No alerts yet. When the band sends one, it appears here instantly.'; return; }
+  ids.forEach(id => {
+    const a = alerts[id], row = document.createElement('div'); row.className = 'alert';
+    const t = document.createElement('span'); t.className = 'tag'; t.textContent = TITLE[a.type] || a.type;
+    const m = document.createElement('span'); m.className = 'm';
+    m.textContent = new Date(a.ts).toLocaleString() + ' | HR ' + (a.heartRate ?? '--') + ' | SpO2 ' + (a.spo2 ?? '--') + ' | ' + (SRC[a.locSource] || 'Unavailable') + (a.manualTrigger ? ' | Manual' : '') + (a.summary ? ' | ' + a.summary : '');
+    row.append(t, m);
+    if (a.acknowledged) { const k = document.createElement('span'); k.className = 'pill on'; k.textContent = 'Acknowledged'; row.append(k); }
+    else { const b = document.createElement('button'); b.className = 'btn'; b.textContent = 'Acknowledge'; b.onclick = () => ack(id); row.append(b); }
+    box.append(row);
+  });
+}
+function ack(id) { if (demo) { alerts[id].acknowledged = true; renderAlerts(); } else db.ref('alerts/' + id + '/acknowledged').set(true); }
+function banner(text) {
+  const b = $('banner'); b.textContent = text; b.style.display = 'block';
+  try { const a = new (window.AudioContext || webkitAudioContext)(), o = a.createOscillator(); o.frequency.value = 880; o.connect(a.destination); o.start(); setTimeout(() => o.stop(), 350); } catch (e) {}
+  setTimeout(() => b.style.display = 'none', 8000);
+}
+function checkNew() {
+  const ids = Object.keys(alerts);
+  if (seenIds === null) { seenIds = new Set(ids); return; }
+  ids.filter(i => !seenIds.has(i)).forEach(i => { seenIds.add(i); banner('New alert: ' + (TITLE[alerts[i].type] || alerts[i].type)); });
+}
+function push(v) {
+  live = v;
+  if (v.hr != null) { hist.push({ hr: v.hr, spo2: v.spo2 }); if (hist.length > 60) hist.shift(); }
+  render();
+}
+
+/* ---------- demo mode ---------- */
+function startDemo() {
+  demo = true; $('simBtn').style.display = ''; $('demoBtn').textContent = 'Hide demo data';
+  alerts = {}; hist = []; seenIds = new Set(); renderAlerts();
+  const tick = () => push({ hr: 70 + Math.round(Math.random() * 10), spo2: 96 + Math.round(Math.random() * 3), lat: 11.0168 + Math.random() * .0006, lng: 76.9558 + Math.random() * .0006, src: 'gps', acc: 8, ts: Date.now() });
+  tick(); timer = setInterval(tick, 2000);
+}
+function stopDemo() {
+  demo = false; clearInterval(timer); $('simBtn').style.display = 'none'; $('demoBtn').textContent = 'Show demo data';
+  alerts = {}; hist = []; live = { hr: null, spo2: null, lat: null, lng: null, src: 'none', acc: null, ts: 0 }; seenIds = null; renderAlerts(); render();
+  if (db) attach();
+}
+$('demoBtn').onclick = () => demo ? stopDemo() : startDemo();
+$('simBtn').onclick = () => {
+  const id = 'd' + Date.now();
+  alerts[id] = { type: 'FALL', ts: Date.now(), heartRate: live.hr, spo2: live.spo2, locSource: 'gps', manualTrigger: false, acknowledged: false, summary: 'Possible fall detected. Please call and check on them now.' };
+  banner('New alert: Fall'); renderAlerts();
+};
+
+/* ---------- Firebase ---------- */
+function attach() {
+  db.ref('devices/' + DEV + '/latest').on('value', s => {
+    if (demo) return; const v = s.val(); if (!v) return;
+    push({ hr: v.heartRate ?? null, spo2: v.spo2 ?? null, lat: v.lat ?? null, lng: v.lng ?? null, src: v.locSource || 'none', acc: v.accuracy ?? null, ts: v.ts || 0 });
+  });
+  db.ref('alerts').orderByChild('ts').limitToLast(20).on('value', s => {
+    if (demo) return; alerts = s.val() || {}; checkNew(); renderAlerts();
+  });
+}
+fetch('/api/config').then(r => r.json()).then(cfg => {
+  if (!cfg.apiKey || !cfg.databaseURL) throw new Error('no config');
+  firebase.initializeApp(cfg); db = firebase.database(); attach();
+}).catch(() => startDemo());
+setInterval(() => { if (!demo) render(); }, 5000);
+renderAlerts(); render();
+</script>
 </body>
 </html>
