@@ -3,11 +3,7 @@ const { jsonResponse } = require('./_lib');
 exports.handler = async (event) => {
   try {
     if (event.httpMethod !== 'GET') {
-      return {
-        statusCode: 405,
-        headers: { Allow: 'GET' },
-        body: 'Method Not Allowed'
-      };
+      return { statusCode: 405, headers: { Allow: 'GET' }, body: 'Method Not Allowed' };
     }
     const cfg = {
       apiKey: process.env.VITE_FIREBASE_API_KEY || '',

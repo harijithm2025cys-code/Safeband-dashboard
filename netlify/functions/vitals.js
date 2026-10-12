@@ -1,27 +1,16 @@
-const {
-  db,
-  jsonResponse,
-  checkSecret,
-  validateVitals,
-  parseBody
-} = require('./_lib');
+const { db, jsonResponse, checkSecret, validateVitals, parseBody } = require('./_lib');
 
 exports.handler = async (event) => {
   try {
-    if (event.httpMethod !== 'POST') {
-      return jsonResponse(405, { error: 'method' });
-    }
-    if (!checkSecret(event)) {
-      return jsonResponse(401, { error: 'unauthorized' });
-    }
+    if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'method' });
+    if (!checkSecret(event)) return jsonResponse(401, { error: 'unauthorized' });
+
     const body = parseBody(event);
-    if (!body) {
-      return jsonResponse(400, { error: 'body' });
-    }
+    if (!body) return jsonResponse(400, { error: 'body' });
+
     const err = validateVitals(body);
-    if (err) {
-      return jsonResponse(400, { error: err });
-    }
+    if (err) return jsonResponse(400, { error: err });
+
     const now = Date.now();
     const payload = {
       heartRate: body.heartRate === undefined ? null : body.heartRate,

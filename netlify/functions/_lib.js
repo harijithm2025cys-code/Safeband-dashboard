@@ -92,11 +92,8 @@ function labelForSource(src) {
 
 function parseBody(event) {
   if (!event.body) return null;
-  try {
-    return JSON.parse(event.body);
-  } catch (e) {
-    return null;
-  }
+  try { return JSON.parse(event.body); }
+  catch (e) { return null; }
 }
 
 module.exports = {

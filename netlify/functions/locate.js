@@ -15,7 +15,7 @@ async function tryGoogle(aps, key) {
     const r = await fetch('https://www.googleapis.com/geolocation/v1/geolocate?key=' + encodeURIComponent(key), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ considerIp: false, wifiAccessPoints: wifiAccessPoints }),
+      body: JSON.stringify({ considerIp: false, wifiAccessPoints }),
       signal: ctrl.signal
     });
     clearTimeout(to);
@@ -26,9 +26,7 @@ async function tryGoogle(aps, key) {
       return { lat: j.location.lat, lng: j.location.lng, accuracy: acc, source: 'wifi' };
     }
     return null;
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 }
 
 async function tryIp(event) {
@@ -44,30 +42,22 @@ async function tryIp(event) {
     if (!r.ok) return null;
     const j = await r.json();
     if (j && j.success !== false && typeof j.latitude === 'number' && typeof j.longitude === 'number') {
-      const acc = 25000;
-      return { lat: j.latitude, lng: j.longitude, accuracy: acc, source: 'ip' };
+      return { lat: j.latitude, lng: j.longitude, accuracy: 25000, source: 'ip' };
     }
     return null;
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 }
 
 exports.handler = async (event) => {
   try {
-    if (event.httpMethod !== 'POST') {
-      return jsonResponse(405, { error: 'method' });
-    }
+    if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'method' });
     const body = parseBody(event);
     const aps = (body && Array.isArray(body.wifiAccessPoints)) ? body.wifiAccessPoints : [];
-
     const key = process.env.LOCATION_API_KEY || '';
     const g = await tryGoogle(aps, key);
     if (g) return jsonResponse(200, g);
-
     const ip = await tryIp(event);
     if (ip) return jsonResponse(200, ip);
-
     return jsonResponse(404, { error: 'no_location' });
   } catch (e) {
     return jsonResponse(500, { error: 'server' });

@@ -1,10 +1,5 @@
 const {
-  db,
-  jsonResponse,
-  checkSecret,
-  validateAlert,
-  labelForSource,
-  parseBody
+  db, jsonResponse, checkSecret, validateAlert, labelForSource, parseBody
 } = require('./_lib');
 
 const ALERT_RATE_MS = 30000;
@@ -35,10 +30,7 @@ async function geminiSummary(type, hr, spo2, locSource, manual) {
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': key
-        },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
           contents: [{
             parts: [{
@@ -66,9 +58,7 @@ async function geminiSummary(type, hr, spo2, locSource, manual) {
       return text.trim().replace(/[*_`#]/g, '').slice(0, 400);
     }
     return fallback;
-  } catch (e) {
-    return fallback;
-  }
+  } catch (e) { return fallback; }
 }
 
 async function sendWhatsApp(title, summary, hr, spo2, lat, lng, locSource, manual) {
@@ -99,36 +89,25 @@ async function sendWhatsApp(title, summary, hr, spo2, lat, lng, locSource, manua
     form.set('Body', body);
     const r = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + auth,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
+      headers: { 'Authorization': 'Basic ' + auth, 'Content-Type': 'application/x-www-form-urlencoded' },
       body: form.toString(),
       signal: ctrl.signal
     });
     clearTimeout(to2);
     return r.ok;
-  } catch (e) {
-    return false;
-  }
+  } catch (e) { return false; }
 }
 
 exports.handler = async (event) => {
   try {
-    if (event.httpMethod !== 'POST') {
-      return jsonResponse(405, { error: 'method' });
-    }
-    if (!checkSecret(event)) {
-      return jsonResponse(401, { error: 'unauthorized' });
-    }
+    if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'method' });
+    if (!checkSecret(event)) return jsonResponse(401, { error: 'unauthorized' });
+
     const body = parseBody(event);
-    if (!body) {
-      return jsonResponse(400, { error: 'body' });
-    }
+    if (!body) return jsonResponse(400, { error: 'body' });
+
     const err = validateAlert(body);
-    if (err) {
-      return jsonResponse(400, { error: err });
-    }
+    if (err) return jsonResponse(400, { error: err });
 
     const now = Date.now();
     const deviceId = body.deviceId;
@@ -159,29 +138,13 @@ exports.handler = async (event) => {
     const sent = await sendWhatsApp(title, summary, hr, spo2, lat, lng, locSource, manual);
 
     const alert = {
-      type: type,
-      manualTrigger: manual,
-      heartRate: hr,
-      spo2: spo2,
-      lat: lat,
-      lng: lng,
-      locSource: locSource,
-      summary: summary,
-      whatsapp: sent,
-      acknowledged: false,
-      ts: now
+      type, manualTrigger: manual, heartRate: hr, spo2: spo2, lat, lng, locSource,
+      summary, whatsapp: sent, acknowledged: false, ts: now
     };
 
     const push = await db().ref('alerts').push(alert);
 
-    const latestUpdate = {
-      heartRate: hr,
-      spo2: spo2,
-      lat: lat,
-      lng: lng,
-      locSource: locSource,
-      ts: now
-    };
+    const latestUpdate = { heartRate: hr, spo2: spo2, lat, lng, locSource, ts: now };
     await db().ref('devices/' + deviceId + '/latest').update(latestUpdate);
 
     return jsonResponse(200, { ok: true, id: push.key });
