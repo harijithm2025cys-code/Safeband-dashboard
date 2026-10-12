@@ -878,7 +878,7 @@
         (function () {
             "use strict";
 
-            const THRESHOLDS = {
+            const THRESH = {
                 impactG: 2.5,
                 stillMs: 2000,
                 countdownS: 10,
@@ -887,6 +887,7 @@
                 hrWarnLow: 50,
                 hrWarnHigh: 120
             };
+            const THRESHOLDS = THRESH;
             const DEVICE_ID = "safeband-01";
             const HR_HISTORY_LEN = 60;
 
@@ -1153,7 +1154,7 @@
             function initMap() {
                 if (S.map) return;
                 try {
-                    S.map = L.map('map', { zoomControl: true, attributionControl: true }).setView([11.0168, 76.9558], 8);
+                    S.map = L.map('map', { zoomControl: true, attributionControl: true }).setView([20, 0], 2);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
                         attribution: '&copy; OpenStreetMap'
@@ -1247,7 +1248,7 @@
                 setText('vSpo2', sp === null ? '00' : String(sp));
                 const statSpo2 = document.getElementById('statSpo2');
                 statSpo2.classList.remove('danger');
-                if (sp !== null && sp >= 1 && sp <= 89) statSpo2.classList.add('danger');
+                if (sp !== null && sp < THRESH.spo2Low) statSpo2.classList.add('danger');
 
                 const imp = (!offline && Number.isFinite(data.accelPeakG)) ? data.accelPeakG : null;
                 setText('vImpact', imp === null ? '00' : imp.toFixed(2));
@@ -1432,8 +1433,15 @@
                     btn.addEventListener('click', async () => {
                         try {
                             if (!S.db || !alert.id) return;
+                            btn.disabled = true;
                             await S.db.ref('alerts/' + alert.id + '/acknowledged').set(true);
-                        } catch (e) { /* ignore */ }
+                            const pill = document.createElement('span');
+                            pill.className = 'ack-pill';
+                            pill.textContent = 'Acknowledged';
+                            btn.replaceWith(pill);
+                        } catch (e) {
+                            btn.disabled = false;
+                        }
                     });
                     actions.appendChild(btn);
                 }

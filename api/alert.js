@@ -1,5 +1,5 @@
 const {
-  db, jsonResponse, checkSecret, validateAlert, labelForSource, parseBody
+  db, checkSecret, validateAlert, labelForSource, parseBody
 } = require('./_lib');
 
 const ALERT_RATE_MS = 30000;
@@ -25,7 +25,7 @@ async function geminiSummary(type, hr, spo2, locSource, manual) {
   if (!key) return fallback;
   try {
     const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 5000);
+    const to = setTimeout(() => ctrl.abort(), 3500);
     const r = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
       {
@@ -58,17 +58,27 @@ async function geminiSummary(type, hr, spo2, locSource, manual) {
       return text.trim().replace(/[*_`#]/g, '').slice(0, 400);
     }
     return fallback;
-  } catch (e) { return fallback; }
+  } catch (e) {
+    return fallback;
+  }
 }
 
-async function sendWhatsApp(title, summary, hr, spo2, lat, lng, locSource, manual) {
+async function sendWhatsApp(type, summary, hr, spo2, lat, lng, locSource, manual) {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_WHATSAPP_FROM;
-  const to = process.env.CAREGIVER_WHATSAPP_TO;
+  let from = process.env.TWILIO_WHATSAPP_FROM;
+  let to = process.env.CAREGIVER_WHATSAPP_TO;
   if (!sid || !token || !from || !to) return false;
 
-  let body = title;
+  if (!from.startsWith('whatsapp:')) from = 'whatsapp:' + from;
+  if (!to.startsWith('whatsapp:')) to = 'whatsapp:' + to;
+
+  const titleMap = {
+    FALL: 'SafeBand: Fall detected',
+    LOW_SPO2: 'SafeBand: Low oxygen',
+    SOS: 'SafeBand: Emergency SOS'
+  };
+  let body = titleMap[type] || 'SafeBand alert';
   if (manual) body += ' (manually triggered)';
   body += '\n' + summary;
   body += '\nHR ' + (hr === null || hr === undefined ? 'unknown' : hr + ' bpm') +
@@ -89,25 +99,40 @@ async function sendWhatsApp(title, summary, hr, spo2, lat, lng, locSource, manua
     form.set('Body', body);
     const r = await fetch(url, {
       method: 'POST',
-      headers: { 'Authorization': 'Basic ' + auth, 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Authorization': 'Basic ' + auth,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
       body: form.toString(),
       signal: ctrl.signal
     });
     clearTimeout(to2);
     return r.ok;
-  } catch (e) { return false; }
+  } catch (e) {
+    return false;
+  }
 }
 
-exports.handler = async (event) => {
+module.exports = async (req, res) => {
   try {
-    if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'method' });
-    if (!checkSecret(event)) return jsonResponse(401, { error: 'unauthorized' });
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
 
-    const body = parseBody(event);
-    if (!body) return jsonResponse(400, { error: 'body' });
+    if (!checkSecret(req)) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const body = parseBody(req);
+    if (!body) {
+      return res.status(400).json({ error: 'Invalid or missing JSON body' });
+    }
 
     const err = validateAlert(body);
-    if (err) return jsonResponse(400, { error: err });
+    if (err) {
+      return res.status(400).json({ error: 'Validation failed on ' + err });
+    }
 
     const now = Date.now();
     const deviceId = body.deviceId;
@@ -115,40 +140,53 @@ exports.handler = async (event) => {
     const snap = await lastRef.get();
     const last = snap && snap.exists() ? snap.val() : 0;
     if (typeof last === 'number' && (now - last) < ALERT_RATE_MS) {
-      return jsonResponse(429, { error: 'rate' });
+      return res.status(429).json({ error: 'Rate limit exceeded: 1 alert per 30s' });
     }
     await lastRef.set(now);
 
     const type = body.type;
     const manual = body.manualTrigger === true;
-    const hr = (body.heartRate === undefined) ? null : body.heartRate;
-    const spo2 = (body.spo2 === undefined) ? null : body.spo2;
-    const lat = (body.lat === undefined) ? null : body.lat;
-    const lng = (body.lng === undefined) ? null : body.lng;
-    const locSource = (body.locSource === undefined) ? 'none' : (body.locSource || 'none');
-
-    const titleMap = {
-      FALL: 'SafeBand: Fall detected',
-      LOW_SPO2: 'SafeBand: Low oxygen',
-      SOS: 'SafeBand: Emergency SOS'
-    };
-    const title = titleMap[type] || 'SafeBand alert';
+    const hr = (body.heartRate === undefined || body.heartRate === null) ? null : body.heartRate;
+    const spo2 = (body.spo2 === undefined || body.spo2 === null) ? null : body.spo2;
+    const lat = (body.lat === undefined || body.lat === null) ? null : body.lat;
+    const lng = (body.lng === undefined || body.lng === null) ? null : body.lng;
+    const locSource = (body.locSource === undefined || body.locSource === null) ? 'none' : body.locSource;
 
     const summary = await geminiSummary(type, hr, spo2, locSource, manual);
-    const sent = await sendWhatsApp(title, summary, hr, spo2, lat, lng, locSource, manual);
+    const sent = await sendWhatsApp(type, summary, hr, spo2, lat, lng, locSource, manual);
 
     const alert = {
-      type, manualTrigger: manual, heartRate: hr, spo2: spo2, lat, lng, locSource,
-      summary, whatsapp: sent, acknowledged: false, ts: now
+      type,
+      manualTrigger: manual,
+      heartRate: hr,
+      spo2: spo2,
+      lat,
+      lng,
+      locSource,
+      summary,
+      whatsapp: sent,
+      acknowledged: false,
+      ts: now
     };
+    if (body.accuracy !== undefined && body.accuracy !== null) {
+      alert.accuracy = body.accuracy;
+    }
 
     const push = await db().ref('alerts').push(alert);
 
-    const latestUpdate = { heartRate: hr, spo2: spo2, lat, lng, locSource, ts: now };
+    const latestUpdate = {
+      heartRate: hr,
+      spo2: spo2,
+      lat,
+      lng,
+      accuracy: (body.accuracy === undefined || body.accuracy === null) ? null : body.accuracy,
+      locSource,
+      ts: now
+    };
     await db().ref('devices/' + deviceId + '/latest').update(latestUpdate);
 
-    return jsonResponse(200, { ok: true, id: push.key });
+    return res.status(200).json({ ok: true, id: push.key });
   } catch (e) {
-    return jsonResponse(500, { error: 'server' });
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 };

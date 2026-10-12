@@ -1,5 +1,9 @@
-node_modules
 .env
 .env.local
-.vercel
+node_modules/
+.pio/
+dist/
+.netlify/
+.vercel/
+**/secrets.h
 .DS_Store

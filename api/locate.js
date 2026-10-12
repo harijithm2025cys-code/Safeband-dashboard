@@ -1,4 +1,4 @@
-const { jsonResponse, parseBody } = require('./_lib');
+const { checkSecret, parseBody } = require('./_lib');
 
 async function tryGoogle(aps, key) {
   if (!key || !Array.isArray(aps) || aps.length < 2) return null;
@@ -26,18 +26,25 @@ async function tryGoogle(aps, key) {
       return { lat: j.location.lat, lng: j.location.lng, accuracy: acc, source: 'wifi' };
     }
     return null;
-  } catch (e) { return null; }
+  } catch (e) {
+    return null;
+  }
 }
 
-async function tryIp(event) {
+async function tryIp(req) {
   try {
-    const headers = event.headers || {};
+    const headers = req.headers || {};
     let ip = headers['x-forwarded-for'] || headers['x-real-ip'] || headers['client-ip'] || '';
     if (typeof ip === 'string' && ip.indexOf(',') !== -1) ip = ip.split(',')[0].trim();
-    if (!ip || ip === '::1' || ip.startsWith('127.') || ip.startsWith('10.') || ip.startsWith('192.168.')) return null;
+
+    let targetUrl = 'https://ipwho.is/';
+    if (ip && !ip.startsWith('127.') && !ip.startsWith('10.') && !ip.startsWith('192.168.') && ip !== '::1') {
+      targetUrl += encodeURIComponent(ip);
+    }
+
     const ctrl = new AbortController();
     const to = setTimeout(() => ctrl.abort(), 5000);
-    const r = await fetch('https://ipwho.is/' + encodeURIComponent(ip), { signal: ctrl.signal });
+    const r = await fetch(targetUrl, { signal: ctrl.signal });
     clearTimeout(to);
     if (!r.ok) return null;
     const j = await r.json();
@@ -45,21 +52,38 @@ async function tryIp(event) {
       return { lat: j.latitude, lng: j.longitude, accuracy: 25000, source: 'ip' };
     }
     return null;
-  } catch (e) { return null; }
+  } catch (e) {
+    return null;
+  }
 }
 
-exports.handler = async (event) => {
+module.exports = async (req, res) => {
   try {
-    if (event.httpMethod !== 'POST') return jsonResponse(405, { error: 'method' });
-    const body = parseBody(event);
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    if (!checkSecret(req)) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (req.bodyParseError) {
+      return res.status(400).json({ error: 'Invalid JSON body' });
+    }
+
+    const body = parseBody(req) || {};
     const aps = (body && Array.isArray(body.wifiAccessPoints)) ? body.wifiAccessPoints : [];
     const key = process.env.LOCATION_API_KEY || '';
+
     const g = await tryGoogle(aps, key);
-    if (g) return jsonResponse(200, g);
-    const ip = await tryIp(event);
-    if (ip) return jsonResponse(200, ip);
-    return jsonResponse(404, { error: 'no_location' });
+    if (g) return res.status(200).json(g);
+
+    const ip = await tryIp(req);
+    if (ip) return res.status(200).json(ip);
+
+    return res.status(404).json({ error: 'no_location' });
   } catch (e) {
-    return jsonResponse(500, { error: 'server' });
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 };

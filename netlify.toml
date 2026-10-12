@@ -1,14 +1,16 @@
 [build]
-  publish = "."
+  publish = "public"
   functions = "netlify/functions"
 
 [functions]
   node_bundler = "esbuild"
+  external_node_modules = ["firebase-admin"]
 
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  to = "/.netlify/functions/api/:splat"
   status = 200
+  force = true
 
 [[redirects]]
   from = "/*"
