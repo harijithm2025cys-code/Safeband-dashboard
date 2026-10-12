@@ -1047,15 +1047,28 @@
                 const monitor = document.getElementById('monitor');
                 const history = document.getElementById('history');
 
+                const hero = document.getElementById('hero');
+                const how = document.getElementById('how');
+                const hardware = document.getElementById('hardware');
+                const roadmap = document.getElementById('roadmap');
+
                 if (user) {
                     navUser.style.display = ''; navUser.textContent = user.email || '';
                     navSignOut.style.display = ''; navLogin.style.display = 'none';
                     authSection.style.display = 'none';
+                    if (hero) hero.style.display = 'none';
+                    if (how) how.style.display = 'none';
+                    if (hardware) hardware.style.display = 'none';
+                    if (roadmap) roadmap.style.display = 'none';
                     monitor.style.display = ''; history.style.display = '';
                 } else {
                     navUser.style.display = 'none';
                     navSignOut.style.display = 'none'; navLogin.style.display = '';
                     authSection.style.display = '';
+                    if (hero) hero.style.display = '';
+                    if (how) how.style.display = '';
+                    if (hardware) hardware.style.display = '';
+                    if (roadmap) roadmap.style.display = '';
                     monitor.style.display = 'none'; history.style.display = 'none';
                     resetMonitorToDefaults();
                     clearAlertList();
