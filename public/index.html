@@ -340,9 +340,6 @@
             text-align: center
         }
 
-        #monitor {
-            display: none
-        }
 
         .m-head {
             display: flex;
@@ -540,9 +537,6 @@
             font-size: 14px
         }
 
-        #history {
-            display: none
-        }
 
         .alert-banner {
             background: linear-gradient(135deg, #8b2c22, #d94a36);
@@ -1060,7 +1054,12 @@
                     if (how) how.style.display = 'none';
                     if (hardware) hardware.style.display = 'none';
                     if (roadmap) roadmap.style.display = 'none';
-                    monitor.style.display = ''; history.style.display = '';
+                    monitor.style.display = 'block';
+                    history.style.display = 'block';
+                    setTimeout(() => {
+                        initMap();
+                        drawChart();
+                    }, 100);
                 } else {
                     navUser.style.display = 'none';
                     navSignOut.style.display = 'none'; navLogin.style.display = '';
@@ -1165,13 +1164,19 @@
             }
 
             function initMap() {
-                if (S.map) return;
+                if (S.map) {
+                    try { S.map.invalidateSize(); } catch (e) {}
+                    return;
+                }
                 try {
+                    const el = document.getElementById('map');
+                    if (!el) return;
                     S.map = L.map('map', { zoomControl: true, attributionControl: true }).setView([20, 0], 2);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
                         attribution: '&copy; OpenStreetMap'
                     }).addTo(S.map);
+                    setTimeout(() => { if (S.map) S.map.invalidateSize(); }, 200);
                 } catch (e) { /* ignore */ }
             }
 
