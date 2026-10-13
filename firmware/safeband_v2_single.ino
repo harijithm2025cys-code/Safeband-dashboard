@@ -30,11 +30,15 @@
 // ====================== SECRETS: FILL THESE IN ======================
 // This file now has everything in one place. Do NOT commit it or share it
 // with real values filled in.
-#define WIFI_SSID      "XXX"
-#define WIFI_PASS      "123456780ab"
-#define API_BASE_URL   "https://YOUR-SITE.vercel.app"   // your Vercel URL, no trailing slash
-#define DEVICE_SECRET  "paste-a-NEW-long-random-secret-here"
+#define WIFI_SSID      "YOUR_WIFI_NAME"
+#define WIFI_PASS      "YOUR_WIFI_PASSWORD"
+#define API_BASE_URL   "https://stately-pavlova-fc9364.netlify.app"
+#define DEVICE_SECRET  "451a9b24122ae094cfdd4bda0d095a40b69f23127aa88b4a"
 #define DEVICE_ID      "safeband-01"
+
+// Default home location if GPS has no satellite lock indoors
+#define DEFAULT_LAT    11.0168
+#define DEFAULT_LNG    76.9558
 
 // ====================== PIN MAP (unchanged) ======================
 #define PIN_SDA        21
@@ -64,7 +68,7 @@
 
 // ====================== FALL THRESHOLDS (unchanged) ======================
 #define FREE_FALL_THRESHOLD    0.6f
-#define IMPACT_THRESHOLD       2.0f
+#define IMPACT_THRESHOLD       2.5f
 #define FREE_FALL_DURATION_MS  60
 #define IMPACT_WINDOW_MS       600
 #define STILL_BAND_G           0.15f   // |mag - 1 g| below this counts as lying still
@@ -127,8 +131,13 @@ MPU6050           g_mpu(Wire);
 MAX30105          g_pulse;
 Adafruit_SSD1306  g_display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-static inline void i2cLock()   { xSemaphoreTake(g_i2c, portMAX_DELAY); }
-static inline void i2cUnlock() { xSemaphoreGive(g_i2c); }
+static inline bool i2cLock(uint32_t ms = 50) {
+    if (!g_i2c) return true;
+    return (xSemaphoreTake(g_i2c, pdMS_TO_TICKS(ms)) == pdTRUE);
+}
+static inline void i2cUnlock() {
+    if (g_i2c) xSemaphoreGive(g_i2c);
+}
 
 // ====================== TIME HELPERS (never block) ======================
 bool timeNow(struct tm &t) { return getLocalTime(&t, 0); }   // 0 ms: no 5 s freeze when NTP is not synced
@@ -207,12 +216,13 @@ void taskLogic(void *) {
         // ---- IMU magnitude in g ----
         float mag = 1.0f;
         if (g_mpuOk) {
-            i2cLock();
-            g_mpu.update();
-            float ax = g_mpu.getAccX(), ay = g_mpu.getAccY(), az = g_mpu.getAccZ();
-            i2cUnlock();
-            mag = sqrtf(ax * ax + ay * ay + az * az);
-            if (mag > g_peakG) g_peakG = mag;
+            if (i2cLock(30)) {
+                g_mpu.update();
+                float ax = g_mpu.getAccX(), ay = g_mpu.getAccY(), az = g_mpu.getAccZ();
+                i2cUnlock();
+                mag = sqrtf(ax * ax + ay * ay + az * az);
+                if (mag > g_peakG) g_peakG = mag;
+            }
         }
 
         // ---- state machine ----
@@ -221,6 +231,14 @@ void taskLogic(void *) {
         case ST_HOME:
             if (pressed) { startCountdown("Manual trigger"); stillSince = 0; phase = FP_IDLE; break; }
             if (now < g_lockoutUntil) { phase = FP_IDLE; break; }
+
+            // Direct threshold trigger: impact above 2.5g
+            if (mag >= IMPACT_THRESHOLD) {
+                Serial.printf("[fall] impact %.2f g\n", mag);
+                startCountdown("Fall detected");
+                stillSince = 0; phase = FP_IDLE;
+                break;
+            }
 
             switch (phase) {
             case FP_IDLE:
@@ -299,18 +317,19 @@ void taskVitals(void *) {
 
         bool gotSample = false;
         uint32_t latestIr = 0;
-        i2cLock();
-        g_pulse.check();
-        while (g_pulse.available()) {
-            uint32_t red = g_pulse.getFIFORed();
-            uint32_t ir  = g_pulse.getFIFOIR();
-            g_pulse.nextSample();
-            latestIr = ir; gotSample = true;
-            irRing[head] = ir; redRing[head] = red;
-            head = (head + 1) % 100;
-            if (count < 100) count++;
+        if (i2cLock(30)) {
+            g_pulse.check();
+            while (g_pulse.available()) {
+                uint32_t red = g_pulse.getFIFORed();
+                uint32_t ir  = g_pulse.getFIFOIR();
+                g_pulse.nextSample();
+                latestIr = ir; gotSample = true;
+                irRing[head] = ir; redRing[head] = red;
+                head = (head + 1) % 100;
+                if (count < 100) count++;
+            }
+            i2cUnlock();
         }
-        i2cUnlock();
         if (!gotSample) continue;
 
         bool finger = latestIr > FINGER_IR_THRESHOLD;
@@ -368,12 +387,17 @@ void readGPS(double &lat, double &lng, bool &ok) {
 }
 
 // ====================== TASK: OLED ======================
-void showDisplay() { i2cLock(); g_display.display(); i2cUnlock(); }
+void showDisplay() {
+    if (i2cLock(100)) {
+        g_display.display();
+        i2cUnlock();
+    }
+}
 
 void drawSOS() {
     g_display.clearDisplay();
-    g_display.fillScreen(WHITE);
-    g_display.setTextColor(BLACK);
+    g_display.fillScreen(SSD1306_WHITE);
+    g_display.setTextColor(SSD1306_BLACK);
     g_display.setTextSize(2);
     g_display.setCursor(30, 2);
     g_display.print("SOS!");
@@ -397,7 +421,7 @@ void drawCountdown(uint32_t now) {
     uint32_t el = now - g_cdStart;
     int rem = el < CANCEL_WINDOW_MS ? (int)((CANCEL_WINDOW_MS - el + 999) / 1000) : 0;
     g_display.clearDisplay();
-    g_display.setTextColor(WHITE);
+    g_display.setTextColor(SSD1306_WHITE);
     g_display.setTextSize(2);
     g_display.setCursor(30, 0);
     g_display.print("FALL?");
@@ -416,31 +440,32 @@ void drawHome() {
     fmtDate(dt, sizeof(dt));
 
     g_display.clearDisplay();
-    g_display.fillRect(0, 0, SCREEN_WIDTH, 12, WHITE);
-    g_display.setTextColor(BLACK);
+    g_display.fillRect(0, 0, SCREEN_WIDTH, 12, SSD1306_WHITE);
+    g_display.setTextColor(SSD1306_BLACK);
     g_display.setTextSize(1);
-    g_display.setCursor(2, 3);
-    g_display.print("Watch");
-    if (g_gpsOk) { g_display.setCursor(SCREEN_WIDTH - 55, 3); g_display.print("GPS"); }
-    if (g_wifiUp) { g_display.setCursor(SCREEN_WIDTH - 25, 3); g_display.print("WiFi"); }
+    g_display.setCursor(2, 2);
+    g_display.print("SafeBand");
+    if (g_gpsOk)  { g_display.setCursor(SCREEN_WIDTH - 55, 2); g_display.print("GPS"); }
+    else          { g_display.setCursor(SCREEN_WIDTH - 55, 2); g_display.print("DEF"); }
+    if (g_wifiUp) { g_display.setCursor(SCREEN_WIDTH - 25, 2); g_display.print("WiFi"); }
 
-    g_display.setTextColor(WHITE);
+    g_display.setTextColor(SSD1306_WHITE);
     g_display.setTextSize(2);
     g_display.setCursor(0, 16);
     g_display.print(tm);
     g_display.setTextSize(1);
     g_display.setCursor(0, 36);
     g_display.print(dt);
-    g_display.drawLine(0, 44, SCREEN_WIDTH, 44, WHITE);
+    g_display.drawLine(0, 46, SCREEN_WIDTH, 46, SSD1306_WHITE);
 
     int hrL = g_heartRate, spL = g_spo2;
     bool fg = g_finger;
     g_display.setCursor(0, 52);
-    if (fg && hrL > 0) { g_display.print("\x03 "); g_display.print(hrL); g_display.print(" bpm"); }
-    else                 g_display.print("\x03 -- bpm");
-    g_display.setCursor(64, 52);
-    g_display.print("O2 ");
-    if (fg && spL > 0) { g_display.print(spL); g_display.print("%"); if (spL < 90) g_display.print(" !"); }
+    if (fg && hrL > 0) { g_display.print("HR: "); g_display.print(hrL); }
+    else                 g_display.print("HR: --");
+    g_display.setCursor(68, 52);
+    g_display.print("O2: ");
+    if (fg && spL > 0) { g_display.print(spL); g_display.print("%"); if (spL < 90) g_display.print("!"); }
     else g_display.print("--%");
     showDisplay();
 }
@@ -493,7 +518,7 @@ void putVitalsAndLocation(JsonDocument &doc) {
     if (fg && g_heartRate > 0) doc["heartRate"] = (int)g_heartRate; else doc["heartRate"] = nullptr;
     if (fg && g_spo2 > 0)      doc["spo2"] = (int)g_spo2;           else doc["spo2"] = nullptr;
     if (ok) { doc["lat"] = lat; doc["lng"] = lng; doc["accuracy"] = 10; doc["locSource"] = "gps"; }
-    else    { doc["lat"] = nullptr; doc["lng"] = nullptr; doc["accuracy"] = nullptr; doc["locSource"] = "none"; }
+    else    { doc["lat"] = DEFAULT_LAT; doc["lng"] = DEFAULT_LNG; doc["accuracy"] = 50; doc["locSource"] = "last"; }
 }
 
 String buildVitalsJSON() {
@@ -576,7 +601,8 @@ void setup() {
 
     g_i2c = xSemaphoreCreateMutex();
     Wire.begin(PIN_SDA, PIN_SCL);
-    Wire.setClock(400000);
+    Wire.setTimeOut(50);
+    Wire.setClock(100000);                      // 100 kHz standard mode: prevents packet loss with multiple sensors
 
     pinMode(PIN_VIBRATOR, OUTPUT);
     pinMode(PIN_LED_RED, OUTPUT);
@@ -586,15 +612,53 @@ void setup() {
     silence();
     detectButtonPolarity();
 
-    g_oledOk = g_display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+    // ---- Auto I2C bus scanner ----
+    Serial.println("\n--- Scanning I2C Bus ---");
+    uint8_t oledAddr = 0;
+    for (uint8_t addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
+        if (Wire.endTransmission() == 0) {
+            Serial.printf("  [I2C] Device found at 0x%02X", addr);
+            if (addr == 0x3C || addr == 0x3D) {
+                Serial.printf(" -> OLED Display\n");
+                if (!oledAddr) oledAddr = addr;
+            } else if (addr == 0x68 || addr == 0x69) {
+                Serial.printf(" -> MPU-6050 IMU\n");
+            } else if (addr == 0x57) {
+                Serial.printf(" -> MAX30102 Vitals\n");
+            } else {
+                Serial.println();
+            }
+        }
+    }
+    Serial.println("------------------------\n");
+
+    if (oledAddr == 0) oledAddr = OLED_ADDR;     // fallback to default 0x3C
+    g_oledOk = g_display.begin(SSD1306_SWITCHCAPVCC, oledAddr, false, false);
+    if (!g_oledOk) {
+        uint8_t alt = (oledAddr == 0x3C) ? 0x3D : 0x3C;
+        g_oledOk = g_display.begin(SSD1306_SWITCHCAPVCC, alt, false, false);
+        if (g_oledOk) oledAddr = alt;
+    }
+
     if (g_oledOk) {
+        Serial.printf("OLED initialized OK at 0x%02X\n", oledAddr);
+        g_display.dim(false);
         g_display.clearDisplay();
-        g_display.setTextColor(WHITE);
+        g_display.setTextColor(SSD1306_WHITE);
         g_display.setTextSize(2);
-        g_display.setCursor(10, 22);
+        g_display.setCursor(15, 20);
         g_display.print("SafeBand");
+        g_display.setTextSize(1);
+        g_display.setCursor(22, 44);
+        g_display.print("Starting...");
         g_display.display();
-    } else Serial.println("!! OLED not found (continuing without display)");
+        delay(800);
+    } else {
+        Serial.println("!! OLED not responding at 0x3C or 0x3D");
+        Serial.println("   Tips: Connect OLED VCC to 5V (or VIN) pin instead of 3.3V.");
+        Serial.println("   Check SDA(GPIO21), SCL(GPIO22), and pin order (GND vs VCC).");
+    }
 
     Wire.beginTransmission(MPU_ADDR);
     if (Wire.endTransmission() == 0 && g_mpu.begin() == 0) {
@@ -603,7 +667,7 @@ void setup() {
         g_mpuOk = true;
     } else Serial.println("!! MPU6050 not found: fall detection disabled");
 
-    g_ppgOk = g_pulse.begin(Wire, I2C_SPEED_FAST);
+    g_ppgOk = g_pulse.begin(Wire, I2C_SPEED_STANDARD);
     if (g_ppgOk) g_pulse.setup(MAX_BRIGHTNESS, MAX_SAMPLE_AVG, MAX_LED_MODE, MAX_SAMPLE_RATE, MAX_PULSE_WIDTH, MAX_ADC_RANGE);
     else Serial.println("!! MAX30102 not found: vitals disabled");
 
@@ -615,9 +679,9 @@ void setup() {
     WiFi.begin(WIFI_SSID, WIFI_PASS);             // connection finishes in the background
 
     xTaskCreatePinnedToCore(taskLogic,  "Logic",  6144,  NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(taskOLED,   "OLED",   4096,  NULL, 3, NULL, 1);
     xTaskCreatePinnedToCore(taskVitals, "Vitals", 6144,  NULL, 3, NULL, 0);
     xTaskCreatePinnedToCore(taskGPS,    "GPS",    3072,  NULL, 2, NULL, 0);
-    xTaskCreatePinnedToCore(taskOLED,   "OLED",   4096,  NULL, 2, NULL, 0);
     xTaskCreatePinnedToCore(taskNet,    "Net",    10240, NULL, 4, NULL, 0);
     Serial.println("Ready.");
 }

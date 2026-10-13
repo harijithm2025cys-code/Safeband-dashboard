@@ -68,6 +68,7 @@ async function sendWhatsApp(type, summary, hr, spo2, lat, lng, locSource, manual
   const token = process.env.TWILIO_AUTH_TOKEN;
   let from = process.env.TWILIO_WHATSAPP_FROM;
   let to = process.env.CAREGIVER_WHATSAPP_TO;
+  const contentSid = process.env.TWILIO_CONTENT_SID;
   if (!sid || !token || !from || !to) return false;
 
   if (!from.startsWith('whatsapp:')) from = 'whatsapp:' + from;
@@ -96,7 +97,18 @@ async function sendWhatsApp(type, summary, hr, spo2, lat, lng, locSource, manual
     const form = new URLSearchParams();
     form.set('From', from);
     form.set('To', to);
-    form.set('Body', body);
+
+    if (contentSid) {
+      form.set('ContentSid', contentSid);
+      form.set('ContentVariables', JSON.stringify({
+        '1': titleMap[type] || 'SafeBand Alert',
+        '2': (hr ? hr + ' bpm' : '--') + ' | ' + (spo2 ? spo2 + '%' : '--'),
+        '3': labelForSource(locSource)
+      }));
+    } else {
+      form.set('Body', body);
+    }
+
     const r = await fetch(url, {
       method: 'POST',
       headers: {
