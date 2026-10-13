@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SafeBand - Autonomous AI Fall Detection & Vitals Wearable | Pitch Deck</title>
+  <style>
+    :root {
+      --navy: #0A1128;
+      --card-bg: #132247;
+      --card-border: #1E3A8A;
+      --accent-cyan: #00D2FF;
+      --accent-red: #FF3366;
+      --accent-green: #00F5D4;
+      --text-white: #FFFFFF;
+      --text-muted: #94A3B8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--navy);
+      color: var(--text-white);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+    }
+    .deck-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    .slide {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      padding: 3rem 4rem 4.5rem;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      transform: scale(0.98);
+      background: radial-gradient(circle at 80% 20%, #15244d 0%, var(--navy) 70%);
+      overflow-y: auto;
+    }
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+      transform: scale(1);
+      z-index: 2;
+    }
+    .slide-header {
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 0.8rem;
+    }
+    .slide-tag {
+      font-size: 0.85rem;
+      letter-spacing: 2px;
+      color: var(--accent-cyan);
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 0.3rem;
+    }
+    .slide-title {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text-white);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: center;
+      flex: 1;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      flex: 1;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.2rem;
+      flex: 1;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .card-cyan { border-top: 3px solid var(--accent-cyan); }
+    .card-red { border-top: 3px solid var(--accent-red); }
+    .card-green { border-top: 3px solid var(--accent-green); }
+    .card h3 {
+      font-size: 1.2rem;
+      margin-bottom: 0.5rem;
+      color: var(--text-white);
+    }
+    .card p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .big-num {
+      font-size: 2.8rem;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 0.4rem;
+    }
+    .pill {
+      display: inline-block;
+      padding: 0.35rem 0.8rem;
+      background: rgba(0, 210, 255, 0.12);
+      border: 1px solid var(--accent-cyan);
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-white);
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .hero-img {
+      max-width: 100%;
+      max-height: 520px;
+      object-fit: contain;
+      border-radius: 16px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+      border: 1px solid var(--card-border);
+    }
+    table.spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+      font-size: 0.88rem;
+    }
+    table.spec-table th, table.spec-table td {
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--card-border);
+      text-align: left;
+    }
+    table.spec-table th {
+      background: rgba(0,0,0,0.4);
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+    table.spec-table tr:nth-child(even) {
+      background: rgba(255,255,255,0.02);
+    }
+    /* Controls bar */
+    .controls-bar {
+      position: fixed;
+      bottom: 0; left: 0;
+      width: 100%;
+      height: 48px;
+      background: rgba(10, 17, 40, 0.95);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 2rem;
+      z-index: 10;
+    }
+    .btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-white);
+      padding: 0.35rem 0.9rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 210, 255, 0.15);
+    }
+    .slide-counter {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="deck-container">
+    <!-- SLIDE 1 -->
+    <div class="slide active" id="slide-1">
+      <div style="flex:1; display:flex; align-items:center;">
+        <div class="grid-2">
+          <div>
+            <div class="slide-tag">MEDTECH & IOT HEALTHCARE WEARABLE</div>
+            <h1 style="font-size: 4rem; font-weight:900; margin-bottom: 0.5rem; line-height:1;">SafeBand</h1>
+            <h2 style="font-size: 1.6rem; color: var(--accent-cyan); margin-bottom: 1.2rem; font-weight:600;">Autonomous AI-Powered Smart Fall Detection & Vitals Monitoring Wearable</h2>
+            <p style="font-size: 1.1rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 1.8rem;">
+              Dignified independence for older adults with zero-delay caregiver peace of mind.<br>
+              Combining on-device TinyML fall intelligence, continuous SpO2/BPM telemetry, 10s cancelable countdown, and multi-channel WhatsApp emergency dispatch.
+            </p>
+            <div style="margin-bottom: 1.5rem;">
+              <span class="pill">Normal Watch Styling</span>
+              <span class="pill">On-Device TinyML</span>
+              <span class="pill">10s Cancel Window</span>
+              <span class="pill">WhatsApp & Cloud GPS</span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted);">SafeBand Engineering Team &bull; Seed Stage Presentation</p>
+          </div>
+          <div style="text-align:center;">
+            <img class="hero-img" src="safeband_product_render.jpg" alt="SafeBand Smartwatch">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2 -->
+    <div class="slide" id="slide-2">
+      <div class="slide-header">
+        <div class="slide-tag">MARKET NEED & CLINICAL IMPACT</div>
+        <div class="slide-title">The "Long Lie" Crisis in Elderly Care</div>
+      </div>
+      <div class="grid-3" style="max-height: 180px; margin-bottom: 1.5rem;">
+        <div class="card card-cyan">
+          <div class="big-num" style="color: var(--accent-cyan);">37.3M+</div>
+          <h3>Falls per Year Globally</h3>
+          <p>1 in 3 adults aged 65+ suffers a fall every year. Falls are the #1 cause of accidental injury death in seniors (WHO).</p>
+        </div>
+        <div class="card card-red">
+          <div class="big-num" style="color: var(--accent-red);">1 Hour</div>
+          <h3>The Critical "Long Lie" Window</h3>
+          <p>Lying on the floor for over 1 hour doubles 6-month mortality due to dehydration, hypothermia, rhabdomyolysis, and pressure sores.</p>
+        </div>
+        <div class="card card-green">
+          <div class="big-num" style="color: var(--accent-green);">80%</div>
+          <h3>Bathroom & Bedroom Falls</h3>
+          <p>Occur indoors when traditional panic pendants are left on bedside charging docks or refused due to stigma.</p>
+        </div>
+      </div>
+      <h4 style="color: var(--accent-cyan); margin-bottom: 0.8rem; text-transform: uppercase; font-size: 0.95rem;">Why Existing Solutions Fail:</h4>
+      <div class="grid-3">
+        <div class="card">
+          <h3 style="color: var(--accent-red);">1. Hospital Panic Pendants</h3>
+          <p>Ugly, stigmatizing "old person" badges. 80% of seniors refuse to wear them out of pride, and they cannot be pressed if unconscious.</p>
+        </div>
+        <div class="card">
+          <h3 style="color: var(--accent-red);">2. Commercial Smartwatches</h3>
+          <p>Expensive ($400+ Apple/Galaxy Watch), battery dies within 18-24 hours, high false alarm rates from daily gestures, requires flagship smartphones.</p>
+        </div>
+        <div class="card">
+          <h3 style="color: var(--accent-red);">3. Basic Fitness Trackers</h3>
+          <p>No fall algorithms, no emergency SOS countdown, no autonomous caregiver escalation or real-time location dispatch.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3 -->
+    <div class="slide" id="slide-3">
+      <div class="slide-header">
+        <div class="slide-tag">PRODUCT VISION</div>
+        <div class="slide-title">SafeBand: Normal Smartwatch Styling with Lifesaving AI</div>
+      </div>
+      <div class="grid-2">
+        <div style="text-align: center;">
+          <img class="hero-img" src="safeband_product_render.jpg" alt="SafeBand" style="max-height: 420px;">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+          <div class="card card-cyan" style="padding: 0.9rem;">
+            <h3>1. Discrete Normal Watch Styling</h3>
+            <p>Looks and functions like a premium circular digital watch. Eliminates stigma so seniors wear it 24/7 with pride.</p>
+          </div>
+          <div class="card card-cyan" style="padding: 0.9rem;">
+            <h3>2. 4-Stage Fall Verification Engine</h3>
+            <p>Weightlessness detection (&lt;0.6g) + impact shock (&gt;2.5g) + post-fall immobility + on-device TinyML filtering.</p>
+          </div>
+          <div class="card card-cyan" style="padding: 0.9rem;">
+            <h3>3. 10-Second Auto-Countdown with 1-Touch Cancel</h3>
+            <p>Audible beeps and haptic pulses give the wearer 10 seconds to cancel false alarms before contacting family.</p>
+          </div>
+          <div class="card card-cyan" style="padding: 0.9rem;">
+            <h3>4. Autonomous Dual-Channel Alert Dispatch</h3>
+            <p>Instant WhatsApp message with Google Maps pin directly to caregivers + real-time web/mobile monitoring dashboard.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4 -->
+    <div class="slide" id="slide-4">
+      <div class="slide-header">
+        <div class="slide-tag">HARDWARE ARCHITECTURE</div>
+        <div class="slide-title">Next-Gen Prototype: ESP32-S3 with 1.28" Round Touch LCD</div>
+      </div>
+      <div class="grid-2">
+        <div style="text-align: center;">
+          <img class="hero-img" src="esp32_s3_round_lcd.jpg" alt="ESP32-S3 Board" style="max-height: 430px;">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.7rem;">
+          <div class="card">
+            <h4 style="color: var(--accent-cyan); margin-bottom: 0.2rem;">Core Controller: ESP32-S3</h4>
+            <p>Dual-core Xtensa LX7 @ 240 MHz with hardware vector instructions for accelerated on-device TinyML neural network execution.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--accent-cyan); margin-bottom: 0.2rem;">Display: 1.28" Circular IPS LCD (240&times;240)</h4>
+            <p>GC9A01 driver + CST816S capacitive touch controller. Crisp 65K color rendering for full circular watchface UI.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--accent-cyan); margin-bottom: 0.2rem;">Onboard 6-Axis Motion Sensor: QMI8658</h4>
+            <p>Integrated 3-axis accelerometer and 3-axis gyroscope with high-rate sampling (50-200 Hz) for precise impact recognition.</p>
+          </div>
+          <div class="card">
+            <h4 style="color: var(--accent-cyan); margin-bottom: 0.2rem;">Memory & Connectivity</h4>
+            <p>512KB SRAM, 8MB PSRAM, 16MB Flash. Integrated 2.4 GHz Wi-Fi (802.11 b/g/n) and Bluetooth 5 (LE) long range.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5 -->
+    <div class="slide" id="slide-5">
+      <div class="slide-header">
+        <div class="slide-tag">USER EXPERIENCE & UI CONCEPTS</div>
+        <div class="slide-title">Circular Watch Face & Intuitive Safety Flow</div>
+      </div>
+      <div style="text-align:center; margin-bottom: 1.2rem;">
+        <img class="hero-img" src="safeband_ui_screens.jpg" alt="UI Screens" style="max-height: 360px; width: 100%; object-fit: contain;">
+      </div>
+      <div class="grid-3">
+        <div class="card card-cyan">
+          <h3>1. Normal Watch Screen</h3>
+          <p>Circular watch face showing digital time, date, real-time heart rate (72 BPM), SpO2 (98%), battery percentage, and Wi-Fi status.</p>
+        </div>
+        <div class="card card-red">
+          <h3>2. 10s Fall Countdown Screen</h3>
+          <p>Pulsing red emergency halo, escalating acoustic beeps, tactile vibration, and a bold "TAP TO CANCEL" button to stop false alarms.</p>
+        </div>
+        <div class="card card-green">
+          <h3>3. SOS Dispatched Screen</h3>
+          <p>Confirms caregiver notification sent, displays emergency latitude/longitude coordinates, and offers calming reassurance to the wearer.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6 -->
+    <div class="slide" id="slide-6">
+      <div class="slide-header">
+        <div class="slide-tag">ARTIFICIAL INTELLIGENCE</div>
+        <div class="slide-title">On-Device TinyML Fall-Detection Pipeline</div>
+      </div>
+      <div class="grid-4" style="margin-bottom: 1.5rem;">
+        <div class="card card-cyan">
+          <div class="slide-tag">STAGE 1</div>
+          <h3>50 Hz IMU Stream</h3>
+          <p>Continuous tri-axial acceleration &amp; angular velocity sampling with Butterworth 0.5-20Hz filtering.</p>
+        </div>
+        <div class="card card-cyan">
+          <div class="slide-tag">STAGE 2</div>
+          <h3>Free-Fall Detection</h3>
+          <p>Weightlessness recognition when total acceleration vector magnitude drops below 0.6g for &gt;60ms.</p>
+        </div>
+        <div class="card card-red">
+          <div class="slide-tag">STAGE 3</div>
+          <h3>Impact Shock</h3>
+          <p>Ground collision shock spike exceeding 2.5g threshold within 600ms of free-fall phase.</p>
+        </div>
+        <div class="card card-green">
+          <div class="slide-tag">STAGE 4</div>
+          <h3>Immobility Verification</h3>
+          <p>Post-impact stillness check (&lt;0.15g variance) for 3-5 seconds confirming wearer is immobilized.</p>
+        </div>
+      </div>
+      <div class="card" style="border: 1px solid var(--accent-cyan); padding: 1.2rem;">
+        <h3 style="color: var(--accent-cyan); margin-bottom: 0.5rem;">TensorFlow Lite for Microcontrollers (TFLM) 1D-CNN Inference</h3>
+        <p style="margin-bottom: 0.5rem;">
+          &bull; <strong>Feature Extraction:</strong> Sliding window (2.0s with 50% overlap), Peak-to-peak jerk, Root Mean Square (RMS), Spectral Entropy, and Tilt Angle.<br>
+          &bull; <strong>Model Footprint:</strong> 1D-Convolutional Neural Network quantized to INT8. Consumes &lt; 22 KB RAM, &lt; 45 KB Flash. Runs in 8.2 ms on ESP32-S3.<br>
+          &bull; <strong>False Positive Rejection:</strong> Eliminates false triggers from clapping, jumping, dropping the watch, abrupt sitting, or athletic arm swings.
+        </p>
+      </div>
+    </div>
+
+    <!-- SLIDE 7 -->
+    <div class="slide" id="slide-7">
+      <div class="slide-header">
+        <div class="slide-tag">SYSTEM INTEGRATION</div>
+        <div class="slide-title">End-to-End Fall Alert &amp; Caregiver Workflow</div>
+      </div>
+      <div class="grid-3" style="margin-bottom: 1.5rem;">
+        <div class="card card-red">
+          <h4 style="color: var(--accent-red);">1. Fall Detected</h4>
+          <p>IMU shock + TinyML neural inference confirms fall signature on the wrist.</p>
+        </div>
+        <div class="card card-red">
+          <h4 style="color: var(--accent-red);">2. 10s Countdown</h4>
+          <p>Watch vibrates and sounds warning beeps. Wearer can tap screen to cancel.</p>
+        </div>
+        <div class="card card-cyan">
+          <h4 style="color: var(--accent-cyan);">3. Cloud Dispatch</h4>
+          <p>ESP32 sends TLS HTTPS POST to Netlify/Vercel serverless API with HMAC device token.</p>
+        </div>
+        <div class="card card-cyan">
+          <h4 style="color: var(--accent-cyan);">4. Firebase RTDB Sync</h4>
+          <p>Server records alert event in Realtime Database with live GPS &amp; vitals telemetry.</p>
+        </div>
+        <div class="card card-green">
+          <h4 style="color: var(--accent-green);">5. WhatsApp Emergency Alert</h4>
+          <p>Twilio dispatches automated WhatsApp alert to caregivers with Google Maps link.</p>
+        </div>
+        <div class="card card-green">
+          <h4 style="color: var(--accent-green);">6. Live Dashboard Alarm</h4>
+          <p>Caregiver web dashboard flashes red alert banner, sounds alarm, and pins location.</p>
+        </div>
+      </div>
+      <div class="card" style="border: 1px solid var(--accent-green);">
+        <h4 style="color: var(--accent-green); margin-bottom: 0.3rem;">Zero-Friction WhatsApp Caregiver Alerting</h4>
+        <p>Caregivers do not need to keep an unfamiliar mobile app open in the background. WhatsApp delivers instant push notification, audio alert, and a 1-tap clickable Google Maps pin of where their loved one fell.</p>
+      </div>
+    </div>
+
+    <!-- SLIDE 8 -->
+    <div class="slide" id="slide-8">
+      <div class="slide-header">
+        <div class="slide-tag">FIRMWARE ARCHITECTURE</div>
+        <div class="slide-title">FreeRTOS Task Architecture &amp; Cloud Integration</div>
+      </div>
+      <div class="grid-2">
+        <div class="card card-cyan">
+          <h3 style="color: var(--accent-cyan);">ESP32-S3 Core 0: Telemetry &amp; Networking</h3>
+          <p style="margin-bottom: 0.6rem;"><strong>taskNet (Priority 4):</strong> Wi-Fi state machine, auto-reconnect, TLS HTTPS POST to /api/vitals and /api/alert, 30s rate-limit handler.</p>
+          <p style="margin-bottom: 0.6rem;"><strong>taskVitals (Priority 3):</strong> 100 Hz optical PPG FIFO extraction from MAX30102, sliding-window BPM &amp; SpO2 calculation.</p>
+          <p><strong>taskGPS (Priority 2):</strong> Non-blocking UART NMEA stream parser updating latitude, longitude, and accuracy metrics.</p>
+        </div>
+        <div class="card card-cyan">
+          <h3 style="color: var(--accent-cyan);">ESP32-S3 Core 1: Logic &amp; User Interface</h3>
+          <p style="margin-bottom: 0.6rem;"><strong>taskLogic (Priority 5):</strong> 50 Hz IMU motion processing, TinyML fall classification, debounced touch &amp; button state machine.</p>
+          <p style="margin-bottom: 0.6rem;"><strong>taskUI / taskOLED (Priority 3):</strong> Circular LVGL graphics engine rendering watchface, countdown ring, and SOS screen @ 5-15 FPS.</p>
+          <p><strong>Non-blocking Mutex:</strong> <code>i2cLock(50ms)</code> timeout semaphores guarantee zero I2C bus deadlocks across all shared sensors.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 9 -->
+    <div class="slide" id="slide-9">
+      <div class="slide-header">
+        <div class="slide-tag">HARDWARE EVOLUTION</div>
+        <div class="slide-title">Evolution: From Lab Prototype to 10.8mm Commercial Smartwatch</div>
+      </div>
+      <div class="grid-2">
+        <div style="text-align: center;">
+          <img class="hero-img" src="safeband_exploded_hardware.jpg" alt="Exploded Hardware" style="max-height: 430px;">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+          <div class="card card-red" style="padding: 1rem;">
+            <div class="slide-tag" style="color: var(--accent-red);">PHASE 1: BENCHTOP PROTOTYPE (COMPLETED)</div>
+            <h3>Thickness: 24.0 mm</h3>
+            <p>ESP32 DevKit WROOM, MPU-6050, MAX30102, 0.96" OLED, NEO-6M GPS. Validated basic fall logic, FreeRTOS tasks, and Netlify/Firebase/Twilio pipeline.</p>
+          </div>
+          <div class="card card-cyan" style="padding: 1rem;">
+            <div class="slide-tag">PHASE 2: CIRCULAR WEARABLE PROTOTYPE (CURRENT)</div>
+            <h3>Thickness: 15.0 mm</h3>
+            <p>Waveshare ESP32-S3-Touch-LCD-1.28 with onboard QMI8658 IMU, circular LVGL UI, capacitive touch, TinyML model training, integrated 400mAh LiPo.</p>
+          </div>
+          <div class="card card-green" style="padding: 1rem;">
+            <div class="slide-tag" style="color: var(--accent-green);">PHASE 3: COMMERCIAL PRODUCTION PRODUCT (TARGET)</div>
+            <h3>Thickness: 10.8 mm (Ultra-Slim)</h3>
+            <p>Custom 4-layer HDI circular PCB, ST LSM6DSOX Machine Learning IMU, ADI MAX86176 medical PPG, u-blox chip GNSS, magnetic pogo charging, 72-hr battery.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 10 -->
+    <div class="slide" id="slide-10">
+      <div class="slide-header">
+        <div class="slide-tag">ENGINEERING BILL OF MATERIALS</div>
+        <div class="slide-title">Component Upgrades: Prototype vs. Commercial Product</div>
+      </div>
+      <table class="spec-table">
+        <thead>
+          <tr>
+            <th>Subsystem</th>
+            <th>Bench Prototype (v1)</th>
+            <th>Touch Prototype (v2)</th>
+            <th>Production Product (Target)</th>
+            <th>Purpose &amp; Upgrade Impact</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Main Controller</strong></td>
+            <td>ESP32-WROOM-32D</td>
+            <td>ESP32-S3 (Dual-Core LX7)</td>
+            <td style="color: var(--accent-green); font-weight:700;">ESP32-S3-MINI-1 / nRF5340</td>
+            <td>Vector AI instructions, 80% smaller footprint, ultra-low sleep current</td>
+          </tr>
+          <tr>
+            <td><strong>Display &amp; Touch</strong></td>
+            <td>0.96" Monochrome OLED</td>
+            <td>1.28" Round Touch LCD</td>
+            <td style="color: var(--accent-green); font-weight:700;">1.28" Circular AMOLED (326 PPI)</td>
+            <td>Vibrant high-contrast watchface, sun-readable, capacitive touch controls</td>
+          </tr>
+          <tr>
+            <td><strong>Motion IMU</strong></td>
+            <td>MPU-6050 (3.8mA, Obsolete)</td>
+            <td>QMI8658 (6-Axis)</td>
+            <td style="color: var(--accent-green); font-weight:700;">ST LSM6DSOX / Bosch BMI270</td>
+            <td>Embedded Machine Learning Core (MLC), 0.55mA, hardware fall interrupt</td>
+          </tr>
+          <tr>
+            <td><strong>PPG Bio-Sensor</strong></td>
+            <td>MAX30102 Breakout</td>
+            <td>MAX30102 Integrated</td>
+            <td style="color: var(--accent-green); font-weight:700;">Maxim MAX86176 / ADPD188</td>
+            <td>Medical-grade optical front-end, motion artifact rejection, 1.8mm thin</td>
+          </tr>
+          <tr>
+            <td><strong>Geolocation</strong></td>
+            <td>NEO-6M (25&times;25mm patch)</td>
+            <td>Wi-Fi Location + Ext GPS</td>
+            <td style="color: var(--accent-green); font-weight:700;">u-blox MIA-M10Q + LDS Bezel</td>
+            <td>4.5&times;4.5mm chip-scale GNSS, laser-direct antenna inside aluminum bezel</td>
+          </tr>
+          <tr>
+            <td><strong>Battery &amp; Charge</strong></td>
+            <td>External Power / LiPo</td>
+            <td>400 mAh LiPo (Type-C)</td>
+            <td style="color: var(--accent-green); font-weight:700;">350 mAh Custom LiPo + Pogo</td>
+            <td>Magnetic 2-pin waterproof dock, 48-72h runtime, 1 hr fast charge</td>
+          </tr>
+          <tr>
+            <td><strong>Case Thickness</strong></td>
+            <td>24.0 mm</td>
+            <td>15.0 mm</td>
+            <td style="color: var(--accent-green); font-weight:700;">10.8 mm (Ultra-Slim)</td>
+            <td>Competitive with Apple Watch (10.7mm) and Galaxy Watch (9.8mm)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- SLIDE 11 -->
+    <div class="slide" id="slide-11">
+      <div class="slide-header">
+        <div class="slide-tag">POWER &amp; SAFETY ENGINEERING</div>
+        <div class="slide-title">Battery Endurance, Safety &amp; Thermal Management</div>
+      </div>
+      <div class="grid-4" style="margin-bottom: 1.5rem;">
+        <div class="card card-green">
+          <div class="slide-tag">ULTRA-LOW IDLE</div>
+          <div class="big-num" style="color: var(--accent-green); font-size: 2.2rem;">0.05 mA</div>
+          <h3>Deep Sleep Mode</h3>
+          <p>Display off, CPU in deep sleep. LSM6DSOX hardware motion interrupt listens for movement.</p>
+        </div>
+        <div class="card card-cyan">
+          <div class="slide-tag">ACTIVE WATCH</div>
+          <div class="big-num" style="color: var(--accent-cyan); font-size: 2.2rem;">15-20 mA</div>
+          <h3>Normal Watchface</h3>
+          <p>Display at 40% brightness, LVGL UI rendering, BLE advertising, optical vitals sampling.</p>
+        </div>
+        <div class="card card-cyan">
+          <div class="slide-tag">VITALS CALC</div>
+          <div class="big-num" style="color: var(--accent-cyan); font-size: 2.2rem;">25-30 mA</div>
+          <h3>SpO2 &amp; HR Compute</h3>
+          <p>CPU @ 160MHz executing pulse peak detection &amp; SpO2 algorithm for 2 seconds.</p>
+        </div>
+        <div class="card card-red">
+          <div class="slide-tag">EMERGENCY TX</div>
+          <div class="big-num" style="color: var(--accent-red); font-size: 2.2rem;">120 mA</div>
+          <h3>Alert Dispatch</h3>
+          <p>Wi-Fi TX burst, buzzer audio beeps, haptic vibration, and TLS POST to cloud.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="color: var(--accent-cyan); margin-bottom: 0.5rem;">Hardware Safety &amp; Ingress Protection</h3>
+        <p style="margin-bottom: 0.4rem;">&bull; <strong>Battery Protection IC:</strong> Dedicated TI BQ2970 IC protects against over-charge, over-discharge, short-circuit, and reverse polarity.</p>
+        <p style="margin-bottom: 0.4rem;">&bull; <strong>NTC Thermal Cutoff:</strong> Hardware thermistor cuts charging if temperature exceeds 45&deg;C, eliminating burn or fire risk on skin.</p>
+        <p style="margin-bottom: 0.4rem;">&bull; <strong>IP68 / 5 ATM Waterproofing:</strong> Hermetically sealed ultrasonic-welded case allows wearing in the shower (where 80% of elderly bathroom falls occur).</p>
+      </div>
+    </div>
+
+    <!-- SLIDE 12 -->
+    <div class="slide" id="slide-12">
+      <div class="slide-header">
+        <div class="slide-tag">TESTING &amp; REGULATORY STRATEGY</div>
+        <div class="slide-title">Algorithm Validation &amp; Medical Compliance Pathway</div>
+      </div>
+      <div class="grid-2">
+        <div class="card card-cyan">
+          <h3>1. Algorithm Benchmarking</h3>
+          <p style="margin-bottom: 0.8rem;">&bull; <strong>Dataset Evaluation:</strong> Tested against SisFall dataset (4,510 simulated falls and activities of daily living across 38 subjects).</p>
+          <p style="margin-bottom: 0.8rem;">&bull; <strong>Accuracy:</strong> Achieved 97.4% Fall Sensitivity and 96.8% Specificity in preliminary lab testing.</p>
+          <p>&bull; <strong>False-Alarm Rate Target:</strong> &lt; 1 false trigger per 120 hours of continuous active use.</p>
+        </div>
+        <div class="card card-green">
+          <h3>2. Consumer &amp; Medical Regulatory Roadmap</h3>
+          <p style="margin-bottom: 0.8rem;">&bull; <strong>Phase 1 (Consumer Wellness):</strong> FCC Part 15, CE RED (Radio Equipment Directive), RoHS, and WEEE certification.</p>
+          <p style="margin-bottom: 0.8rem;">&bull; <strong>Phase 2 (Medical Device Readiness):</strong> ISO 13485 (Medical Device Quality Management System).</p>
+          <p>&bull; <strong>FDA 510(k) Roadmap:</strong> Medical grade fall-detection clearance under FDA Class II exempt / De Novo pathway.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 13 -->
+    <div class="slide" id="slide-13">
+      <div class="slide-header">
+        <div class="slide-tag">COMMERCIAL POTENTIAL</div>
+        <div class="slide-title">Market Size, Pricing &amp; Multi-Tier Revenue Model</div>
+      </div>
+      <div class="grid-3" style="max-height: 180px; margin-bottom: 1.5rem;">
+        <div class="card card-green">
+          <div class="big-num" style="color: var(--accent-green);">$24.8B</div>
+          <h3>Elderly Care Tech Market</h3>
+          <p>Projected global market size by 2028, growing at 12.4% CAGR.</p>
+        </div>
+        <div class="card card-cyan">
+          <div class="big-num" style="color: var(--accent-cyan);">1.4 Billion</div>
+          <h3>Global Seniors (60+)</h3>
+          <p>By 2030, 1 in 6 people globally will be aged 60 or older.</p>
+        </div>
+        <div class="card card-cyan">
+          <div class="big-num" style="color: var(--accent-cyan);">&#8377;3,999</div>
+          <h3>SafeBand Price Point</h3>
+          <p>80% more affordable than Apple Watch or medical emergency pendants.</p>
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <h3 style="color: var(--accent-cyan);">1. Hardware Sales (B2C)</h3>
+          <p>One-time hardware purchase: &#8377;3,999 - &#8377;4,999 ($49 - $59). Includes free lifetime basic WhatsApp alert dispatch and live location sharing.</p>
+        </div>
+        <div class="card">
+          <h3 style="color: var(--accent-cyan);">2. Caregiver SaaS (Freemium)</h3>
+          <p>&#8377;299 / month ($3.99/mo): Historical vitals analytics, automated weekly doctor PDF export, multi-caregiver escalation tree, and voice call dispatch.</p>
+        </div>
+        <div class="card">
+          <h3 style="color: var(--accent-cyan);">3. Enterprise B2B Licensing</h3>
+          <p>Assisted Living Facilities &amp; Hospitals: Bulk device leasing + centralized nurse monitoring station software with floor-plan location beacon integration.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 14 -->
+    <div class="slide" id="slide-14">
+      <div class="slide-header">
+        <div class="slide-tag">EXECUTION STRATEGY</div>
+        <div class="slide-title">Execution Roadmap &amp; Commercialization Milestones</div>
+      </div>
+      <div class="grid-4">
+        <div class="card card-green">
+          <div class="slide-tag" style="color: var(--accent-green);">PHASE 1 (COMPLETED)</div>
+          <h4 style="color: var(--text-muted); margin-bottom: 0.3rem;">Weeks 1 - 4</h4>
+          <h3>Proof of Concept</h3>
+          <p style="font-size: 0.85rem; line-height: 1.5;">
+            &bull; Bench prototype on ESP32<br>
+            &bull; Netlify &amp; Firebase RTDB backend<br>
+            &bull; Twilio WhatsApp auto-dispatch<br>
+            &bull; Live caregiver web dashboard
+          </p>
+        </div>
+        <div class="card card-cyan">
+          <div class="slide-tag">PHASE 2 (CURRENT)</div>
+          <h4 style="color: var(--text-muted); margin-bottom: 0.3rem;">Months 2 - 3</h4>
+          <h3>Round Wearable</h3>
+          <p style="font-size: 0.85rem; line-height: 1.5;">
+            &bull; 1.28" Round Touch LCD integration<br>
+            &bull; LVGL watchface &amp; countdown UX<br>
+            &bull; TinyML model training &amp; test<br>
+            &bull; 3D-printed sleek wrist enclosure
+          </p>
+        </div>
+        <div class="card card-cyan">
+          <div class="slide-tag">PHASE 3 (NEXT)</div>
+          <h4 style="color: var(--text-muted); margin-bottom: 0.3rem;">Months 4 - 6</h4>
+          <h3>Custom 10.8mm PCB</h3>
+          <p style="font-size: 0.85rem; line-height: 1.5;">
+            &bull; 4-layer HDI circular PCB design<br>
+            &bull; ST LSM6DSOX + ADI PPG<br>
+            &bull; IP68 aluminum case tooling<br>
+            &bull; Pilot clinical trial (50 seniors)
+          </p>
+        </div>
+        <div class="card card-red">
+          <div class="slide-tag" style="color: var(--accent-red);">PHASE 4 (LAUNCH)</div>
+          <h4 style="color: var(--text-muted); margin-bottom: 0.3rem;">Months 7 - 9</h4>
+          <h3>Mass Production</h3>
+          <p style="font-size: 0.85rem; line-height: 1.5;">
+            &bull; FCC / CE pre-compliance testing<br>
+            &bull; Mass injection molding tooling<br>
+            &bull; 1,000 unit manufacturing batch<br>
+            &bull; Commercial launch &amp; partnerships
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 15 -->
+    <div class="slide" id="slide-15">
+      <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+        <div class="slide-tag">CONCLUSION &amp; NEXT STEPS</div>
+        <h1 style="font-size: 2.8rem; font-weight:800; margin-bottom: 1.5rem;">SafeBand: Transforming Fall Safety from Stigma to Style</h1>
+        <div class="grid-3" style="margin-bottom: 1.5rem;">
+          <div class="card card-cyan">
+            <h3>Wearer Dignity</h3>
+            <p>No stigmatizing hospital pendants. A genuine circular digital watch that seniors love to wear 24/7.</p>
+          </div>
+          <div class="card card-cyan">
+            <h3>Proven Accuracy</h3>
+            <p>Multi-tier thresholding + on-device TinyML reduces false alarms by over 95% compared to simple pedometers.</p>
+          </div>
+          <div class="card card-green">
+            <h3>Zero-Friction Alerts</h3>
+            <p>Instant WhatsApp dispatch with exact Google Maps location. No apps to install for family members.</p>
+          </div>
+        </div>
+        <div class="card card-green" style="padding: 1.2rem;">
+          <h3 style="color: var(--accent-green); margin-bottom: 0.3rem;">THE ASK &amp; PARTNERSHIP OPPORTUNITY</h3>
+          <p style="font-size: 1rem; line-height: 1.6;">
+            Seeking Seed Investment &amp; Manufacturing Partnerships to fund:<br>
+            <strong>1.</strong> Custom 4-Layer 10.8mm HDI PCB engineering and mold tooling.<br>
+            <strong>2.</strong> Pilot clinical trial deployment across 50 senior living residents.<br>
+            <strong>3.</strong> FCC/CE pre-compliance certification and initial commercial pilot batch.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation Bar -->
+  <div class="controls-bar">
+    <div>
+      <button class="btn" onclick="prevSlide()">&larr; Previous</button>
+      <button class="btn" onclick="nextSlide()">Next &rarr;</button>
+    </div>
+    <div class="slide-counter" id="slide-num">Slide 1 of 15</div>
+    <div>
+      <button class="btn" onclick="toggleFullScreen()">&#x26F6; Fullscreen</button>
+      <a class="btn" href="SafeBand_Pitch_Deck_v2.pptx" download style="text-decoration:none; margin-left: 0.5rem; background: var(--accent-green); color: #0A1128; font-weight: 700;">Download .PPTX</a>
+    </div>
+  </div>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 15;
+
+    function showSlide(n) {
+      if (n < 1) n = 1;
+      if (n > totalSlides) n = totalSlides;
+      currentSlide = n;
+
+      for (let i = 1; i <= totalSlides; i++) {
+        const slide = document.getElementById('slide-' + i);
+        if (slide) {
+          if (i === currentSlide) {
+            slide.classList.add('active');
+          } else {
+            slide.classList.remove('active');
+          }
+        }
+      }
+      document.getElementById('slide-num').innerText = `Slide ${currentSlide} of ${totalSlides}`;
+    }
+
+    function nextSlide() { showSlide(currentSlide + 1); }
+    function prevSlide() { showSlide(currentSlide - 1); }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') nextSlide();
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') prevSlide();
+    });
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+  </script>
+</body>
+</html>

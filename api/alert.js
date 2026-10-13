@@ -107,8 +107,13 @@ async function sendWhatsApp(type, summary, hr, spo2, lat, lng, locSource, manual
       signal: ctrl.signal
     });
     clearTimeout(to2);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      console.error('[Twilio Error]', r.status, err.code, err.message);
+    }
     return r.ok;
   } catch (e) {
+    console.error('[Twilio Exception]', e && e.message ? e.message : e);
     return false;
   }
 }
